@@ -8,7 +8,7 @@ from funcy import cached_property, cat
 from git import InvalidGitRepositoryError
 
 from dvc.config import Config
-from dvc.exceptions import FileMissingError
+from dvc.exceptions import DvcException, FileMissingError
 from dvc.exceptions import IsADirectoryError as DvcIsADirectoryError
 from dvc.exceptions import NotDvcRepoError, OutputNotFoundError
 from dvc.path_info import PathInfo
@@ -293,6 +293,7 @@ class Repo:
         jobs=None,
         recursive=False,
         used_run_cache=None,
+        ignore_dvc_exceptions=False,
     ):
         """Get the stages related to the given target and collect
         the `info` of its outputs.
@@ -319,22 +320,30 @@ class Repo:
         ):
             targets = targets or [None]
 
-            pairs = cat(
-                self.stage.collect_granular(
-                    target, recursive=recursive, with_deps=with_deps
+            try:
+                pairs = cat(
+                    self.stage.collect_granular(
+                        target, recursive=recursive, with_deps=with_deps
+                    )
+                    for target in targets
                 )
-                for target in targets
-            )
 
-            suffix = f"({branch})" if branch else ""
-            for stage, filter_info in pairs:
-                used_cache = stage.get_used_cache(
-                    remote=remote,
-                    force=force,
-                    jobs=jobs,
-                    filter_info=filter_info,
-                )
-                cache.update(used_cache, suffix=suffix)
+                suffix = f"({branch})" if branch else ""
+                for stage, filter_info in pairs:
+                    used_cache = stage.get_used_cache(
+                        remote=remote,
+                        force=force,
+                        jobs=jobs,
+                        filter_info=filter_info,
+                    )
+                    cache.update(used_cache, suffix=suffix)
+            except DvcException as e:
+                logger.error(f"Cache for '{branch}' could not be collected")
+                if ignore_dvc_exceptions:
+                    logger.debug(e)
+                    continue
+
+                raise e
 
         if used_run_cache:
             used_cache = self.stage_cache.get_used_cache(

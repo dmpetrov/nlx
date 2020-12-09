@@ -55,6 +55,7 @@ class CmdGC(CmdBase):
             jobs=self.args.jobs,
             repos=self.args.repos,
             workspace=self.args.workspace,
+            skip_failing_collect=self.args.skip_failing_collect,
         )
         return 0
 
@@ -140,5 +141,15 @@ def add_parser(subparsers, parent_parser):
         "in addition to the current one. "
         "Useful if you share a single cache across repos.",
         metavar="<paths>",
+    )
+    gc_parser.add_argument(
+        "--skip-failing-collect",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip commits were the cache cannot be "
+            "collected due to user errors in the dvc "
+            "state (eg. badly formatted dvc.yaml)."
+        ),
     )
     gc_parser.set_defaults(func=CmdGC)

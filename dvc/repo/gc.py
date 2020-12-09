@@ -30,6 +30,7 @@ def gc(
     jobs=None,
     repos=None,
     workspace=False,
+    skip_failing_collect=False,
 ):
 
     # require `workspace` to be true to come into effect.
@@ -66,6 +67,7 @@ def gc(
                     remote=remote,
                     force=force,
                     jobs=jobs,
+                    ignore_dvc_exceptions=skip_failing_collect,
                 )
             )
 

@@ -89,6 +89,7 @@ def checkout(
         "deleted": [],
         "modified": [],
         "failed": [],
+        "failed_not_stored": [],
     }
     if not targets:
         targets = [None]
@@ -117,8 +118,13 @@ def checkout(
             for key, items in result.items():
                 stats[key].extend(_fspath_dir(path) for path in items)
 
-    if stats.get("failed"):
-        raise CheckoutError(stats["failed"], stats)
+    if stats.get("failed") or stats.get("failed_not_stored"):
+        raise CheckoutError(
+            stats["failed"] + stats["failed_not_stored"],
+            stats,
+            failed_not_stored=stats["failed_not_stored"],
+        )
 
     del stats["failed"]
+    del stats["failed_not_stored"]
     return stats

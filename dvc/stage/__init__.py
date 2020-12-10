@@ -238,10 +238,9 @@ class Stage(params.StageParams):
 
     @property
     def is_repo_import(self):
-        if not self.is_import:
-            return False
-
-        return isinstance(self.deps[0], dependency.RepoDependency)
+        return len(self.deps) == 1 and isinstance(
+            self.deps[0], dependency.RepoDependency
+        )
 
     @property
     def is_checkpoint(self):
@@ -540,6 +539,8 @@ class Stage(params.StageParams):
                 return None, []
             return "modified" if modified else "added", [out.path_info]
         except CheckoutError as exc:
+            if not out.store:
+                return "failed_not_stored", exc.target_infos
             return "failed", exc.target_infos
 
     @rwlocked(read=["deps", "outs"])

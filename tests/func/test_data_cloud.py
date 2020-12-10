@@ -6,6 +6,7 @@ import pytest
 from flaky.flaky_decorator import flaky
 
 from dvc.cache import NamedCache
+from dvc.exceptions import DvcException
 from dvc.external_repo import clean_repos
 from dvc.main import main
 from dvc.remote.base import (
@@ -305,7 +306,7 @@ def test_verify_hashes(
 @pytest.mark.parametrize(
     "erepo", [pytest.lazy_fixture("git_dir"), pytest.lazy_fixture("erepo_dir")]
 )
-def test_pull_git_imports(tmp_dir, dvc, scm, erepo):
+def test_pull_git_imports(tmp_dir, dvc, scm, erepo, local_remote):
     with erepo.chdir():
         erepo.scm_gen({"dir": {"bar": "bar"}}, commit="second")
         erepo.scm_gen("foo", "foo", commit="first")
@@ -314,6 +315,7 @@ def test_pull_git_imports(tmp_dir, dvc, scm, erepo):
     dvc.imp(os.fspath(erepo), "dir", out="new_dir", rev="HEAD~")
 
     assert dvc.pull()["fetched"] == 0
+    assert dvc.push() == 0
 
     for item in ["foo", "new_dir", dvc.cache.local.cache_dir]:
         remove(item)
@@ -327,6 +329,72 @@ def test_pull_git_imports(tmp_dir, dvc, scm, erepo):
 
     assert (tmp_dir / "new_dir").exists()
     assert (tmp_dir / "new_dir" / "bar").read_text() == "bar"
+
+
+@pytest.mark.parametrize(
+    "erepo", [pytest.lazy_fixture("git_dir"), pytest.lazy_fixture("erepo_dir")]
+)
+def test_pull_git_imports_with_store(tmp_dir, dvc, scm, erepo, local_remote):
+    with erepo.chdir():
+        erepo.scm_gen({"dir": {"bar": "bar"}}, commit="second")
+        erepo.scm_gen("foo", "foo", commit="first")
+
+    dvc.imp(os.fspath(erepo), "foo", store=True)
+    dvc.imp(os.fspath(erepo), "dir", out="new_dir", store=True, rev="HEAD~")
+
+    assert dvc.pull()["fetched"] == 0
+    assert dvc.push() == 3
+
+    for item in ["foo", "new_dir", dvc.cache.local.cache_dir]:
+        remove(item)
+    os.makedirs(dvc.cache.local.cache_dir, exist_ok=True)
+    clean_repos()
+
+    # Close the repo since otherwise Windows holds references open which
+    # prevent deletion
+    erepo.close()
+    remove(erepo)
+
+    assert dvc.pull(force=True)["fetched"] == 2
+
+    assert (tmp_dir / "foo").exists()
+    assert (tmp_dir / "foo").read_text() == "foo"
+
+    assert (tmp_dir / "new_dir").exists()
+    assert (tmp_dir / "new_dir" / "bar").read_text() == "bar"
+
+
+def test_store_false_pull_error(tmp_dir, dvc, scm, local_remote, caplog):
+    tmp_dir.dvc_gen("foo", "Locally added", commit="add no-store file")
+    tmp_dir.dvc_gen("bar", "Another local file", commit="add normal file")
+
+    dvc.push()
+    clean(["foo", "bar"], dvc)
+    dvc.pull()
+
+    config = load_yaml(tmp_dir / "foo.dvc")
+    config["outs"][0]["store"] = False
+    dump_yaml(tmp_dir / "foo.dvc", config)
+
+    dvc.push()
+    clean(["foo", "bar"], dvc)
+
+    missing_error = (
+        "Cache 'md5: d089d68656330fd712dad63400c8710f' not found. "
+        "File 'foo' won't be created"
+    )
+    missing_error_hints = (
+        "foo (marked with 'store: false' in its dvc file)",
+        (
+            "Note that 'store: false' outputs are not searched for in remote "
+            "storage, only in the cache. See"
+        ),
+    )
+    caplog.clear()
+    with pytest.raises(DvcException) as excinfo:
+        dvc.pull()
+    assert missing_error in caplog.text
+    assert all(h in str(excinfo.value) for h in missing_error_hints)
 
 
 def test_pull_external_dvc_imports(tmp_dir, dvc, scm, erepo_dir):

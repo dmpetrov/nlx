@@ -31,6 +31,31 @@ def test_import(tmp_dir, scm, dvc, erepo_dir):
         "rev_lock": erepo_dir.scm.get_rev(),
     }
 
+    outs = stage.dumpd()["outs"]
+    assert outs[0]["path"] == "foo_imported"
+    assert "store" not in outs[0]
+    assert "md5" in outs[0]
+
+
+def test_import_with_store(tmp_dir, scm, dvc, erepo_dir):
+    with erepo_dir.chdir():
+        erepo_dir.dvc_gen("foo", "foo content", commit="create foo")
+
+    stage = dvc.imp(os.fspath(erepo_dir), "foo", "foo_imported", store=True)
+
+    assert os.path.isfile("foo_imported")
+    assert (tmp_dir / "foo_imported").read_text() == "foo content"
+    assert scm.repo.git.check_ignore("foo_imported")
+    assert stage.deps[0].def_repo == {
+        "url": os.fspath(erepo_dir),
+        "rev_lock": erepo_dir.scm.get_rev(),
+    }
+
+    outs = stage.dumpd()["outs"]
+    assert outs[0]["path"] == "foo_imported"
+    assert outs[0]["store"]
+    assert "md5" in outs[0]
+
 
 @pytest.mark.parametrize("src_is_dvc", [True, False])
 def test_import_git_file(tmp_dir, scm, dvc, git_dir, src_is_dvc):

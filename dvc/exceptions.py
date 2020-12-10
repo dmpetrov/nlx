@@ -265,16 +265,32 @@ class UploadError(DvcException):
 
 
 class CheckoutError(DvcException):
-    def __init__(self, target_infos, stats=None):
+    def __init__(self, target_infos, stats=None, failed_not_stored=None):
         self.target_infos = target_infos
         self.stats = stats
-        targets = [str(t) for t in target_infos]
+        targets = []
+        for t in target_infos:
+            if failed_not_stored and t in failed_not_stored:
+                targets.append(
+                    "{} (marked with 'store: false' in its dvc file)".format(t)
+                )
+            else:
+                targets.append(str(t))
+
         m = (
-            "Checkout failed for following targets:\n{}\nIs your "
-            "cache up to date?\n{}".format(
+            "Checkout failed for following targets:\n{}\n\n"
+            "Is your cache up to date?\n{}".format(
                 "\n".join(targets), error_link("missing-files"),
             )
         )
+
+        if failed_not_stored:
+            m = m + (
+                "\n\nNote that 'store: false' outputs are not "
+                "searched for in remote storage, only in the cache. "
+                "See {}".format(error_link("checkout-no-store"),)
+            )
+
         super().__init__(m)
 
 

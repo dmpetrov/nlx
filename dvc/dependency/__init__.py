@@ -51,12 +51,14 @@ DEP_MAP = {
 
 # NOTE: schema for dependencies is basically the same as for outputs, but
 # without output-specific entries like 'cache' (whether or not output is
-# cached, see -o and -O flags for `dvc run`) and 'metric' (whether or not
-# output is a metrics file and how to parse it, see `-M` flag for `dvc run`).
+# cached, see -o and -O flags for `dvc run`), 'metric' (whether or not output
+# is a metric file and how to parse it, see `-M` flag for `dvc run`) and
+# `store` (whether to push outputs to the remote)
 SCHEMA = output.SCHEMA.copy()
 del SCHEMA[BaseOutput.PARAM_CACHE]
 del SCHEMA[BaseOutput.PARAM_METRIC]
 del SCHEMA[BaseOutput.PARAM_DESC]
+del SCHEMA[BaseOutput.PARAM_STORE]
 SCHEMA.update(RepoDependency.REPO_SCHEMA)
 SCHEMA.update(ParamsDependency.PARAM_SCHEMA)
 

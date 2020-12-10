@@ -55,6 +55,15 @@ class OutputIsIgnoredError(DvcException):
         super().__init__(f"Path '{match.file}' is ignored by\n{lines}")
 
 
+class OutputStoreCacheIncompatible(DvcException):
+    def __init__(self, path):
+        msg = f"""Incompatible options for output '{path}'.
+    The .dvc file specifies an output with both `cache == False` and
+    `store == True` which is not possible to satisfy.
+    """
+        super().__init__(msg)
+
+
 class BaseOutput:
     IS_DEPENDENCY = False
 
@@ -76,6 +85,7 @@ class BaseOutput:
     PARAM_PLOT_HEADER = "header"
     PARAM_PERSIST = "persist"
     PARAM_DESC = "desc"
+    PARAM_STORE = "store"
 
     METRIC_SCHEMA = Any(
         None,
@@ -105,6 +115,7 @@ class BaseOutput:
         persist=False,
         checkpoint=False,
         desc=None,
+        store=True,
     ):
         self._validate_output_path(path, stage)
         # This output (and dependency) objects have too many paths/urls
@@ -128,6 +139,8 @@ class BaseOutput:
         self.use_cache = False if self.IS_DEPENDENCY else cache
         self.metric = False if self.IS_DEPENDENCY else metric
         self.plot = False if self.IS_DEPENDENCY else plot
+        self.store = True if self.IS_DEPENDENCY else store
+
         self.persist = persist
         self.checkpoint = checkpoint
         self.desc = desc
@@ -328,6 +341,9 @@ class BaseOutput:
         if self.checkpoint:
             ret[self.PARAM_CHECKPOINT] = self.checkpoint
 
+        if self.store == self.stage.is_repo_import:
+            ret[self.PARAM_STORE] = self.store
+
         return ret
 
     def verify_metric(self):
@@ -484,10 +500,16 @@ class BaseOutput:
         """
 
         if not self.use_cache:
+            if self.store:
+                raise OutputStoreCacheIncompatible(self)
             return NamedCache()
 
-        if self.stage.is_repo_import:
+        if not self.store:
             cache = NamedCache()
+            if not self.stage.is_repo_import:
+                return cache
+            # If this out isn't backed up but it is an import, then it's an
+            # external dependancy and can be retrieved from its source
             (dep,) = self.stage.deps
             cache.external[dep.repo_pair].add(dep.def_path)
             return cache

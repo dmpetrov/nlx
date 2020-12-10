@@ -19,6 +19,7 @@ def imp_url(
     frozen=True,
     no_exec=False,
     desc=None,
+    store=True,
 ):
     from dvc.dvcfile import Dvcfile
     from dvc.stage import Stage, create_stage, restore_meta
@@ -34,14 +35,15 @@ def imp_url(
     ):
         url = relpath(url, wdir)
 
+    kwargs = {"outs": [out]} if store else {"outs_no_store": [out]}
     stage = create_stage(
         Stage,
         self,
         fname or path,
         wdir=wdir,
         deps=[url],
-        outs=[out],
         erepo=erepo,
+        **kwargs,
     )
     restore_meta(stage)
     if stage.can_be_skipped:

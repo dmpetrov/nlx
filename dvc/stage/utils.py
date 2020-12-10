@@ -54,6 +54,7 @@ def fill_stage_outputs(stage, **kwargs):
         "outs_no_cache",
         "outs",
         "checkpoints",
+        "outs_no_store",
     ]
 
     stage.outs = []
@@ -62,6 +63,7 @@ def fill_stage_outputs(stage, **kwargs):
             stage,
             kwargs.get(key, []),
             use_cache="no_cache" not in key,
+            store="no_store" not in key and "no_cache" not in key,
             persist="persist" in key,
             metric="metrics" in key,
             plot="plots" in key,

@@ -617,6 +617,7 @@ def test_checkout_stats_on_failure(tmp_dir, dvc, scm):
     assert exc.value.stats == {
         **empty_checkout,
         "failed": ["foo"],
+        "failed_not_stored": [],
         "modified": ["other"],
     }
 

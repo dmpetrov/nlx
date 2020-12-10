@@ -19,6 +19,7 @@ class CmdImport(CmdBase):
                 rev=self.args.rev,
                 no_exec=self.args.no_exec,
                 desc=self.args.desc,
+                store=self.args.store,
             )
         except DvcException:
             logger.exception(
@@ -80,6 +81,16 @@ def add_parser(subparsers, parent_parser):
         help=(
             "User description of the data (optional). "
             "This doesn't affect any DVC operations."
+        ),
+    )
+    import_parser.add_argument(
+        "-s",
+        "--store",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable pushing the imported data to remote storage, and "
+            "pulling it from there (instead of reimporting)."
         ),
     )
     import_parser.set_defaults(func=CmdImport)

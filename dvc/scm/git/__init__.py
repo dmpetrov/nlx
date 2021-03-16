@@ -357,6 +357,7 @@ class Git(Base):
     add = partialmethod(_backend_func, "add")
     commit = partialmethod(_backend_func, "commit")
     checkout = partialmethod(_backend_func, "checkout")
+    fetch = partialmethod(_backend_func, "fetch")
     pull = partialmethod(_backend_func, "pull")
     push = partialmethod(_backend_func, "push")
     branch = partialmethod(_backend_func, "branch")

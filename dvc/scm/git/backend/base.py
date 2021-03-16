@@ -76,6 +76,15 @@ class BaseGitBackend(ABC):
         pass
 
     @abstractmethod
+    def fetch(
+        self,
+        remote: Optional[str] = None,
+        force: bool = False,
+        unshallow: bool = False,
+    ):
+        pass
+
+    @abstractmethod
     def pull(self, **kwargs):
         pass
 

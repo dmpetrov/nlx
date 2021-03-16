@@ -137,6 +137,14 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
             else:
                 self.repo.set_head(commit.id)
 
+    def fetch(
+        self,
+        remote: Optional[str] = None,
+        force: bool = False,
+        unshallow: bool = False,
+    ):
+        raise NotImplementedError
+
     def pull(self, **kwargs):
         raise NotImplementedError
 

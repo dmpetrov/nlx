@@ -125,56 +125,36 @@ def test_relative_remote(erepo_dir, tmp_dir):
             assert fd.read() == "contents"
 
 
-def test_shallow_clone_branch(erepo_dir):
-    with erepo_dir.chdir():
-        with erepo_dir.branch("branch", new=True):
-            erepo_dir.dvc_gen("file", "branch", commit="create file on branch")
-        erepo_dir.dvc_gen("file", "master", commit="create file on master")
+def test_shallow_clone(mocker):
+    initial_commit = "d440c4b9fd17710568abd41068647e097c0e67bd"
+    url = "https://github.com/iterative/example-get-started.git"
+    tag = "10-bigrams-experiment"
+    mock_clone = mocker.patch.object(Git, "clone", wraps=Git.clone)
+    with external_repo(url, rev=tag) as repo:
+        with repo.open_by_relpath("scores.json") as fd:
+            assert fd.read().strip() == (
+                '{"avg_prec": 0.5525903977371824, '
+                '"roc_auc": 0.9153617182768166}'
+            )
+        assert not repo.scm.has_rev(initial_commit)
 
-    url = os.fspath(erepo_dir)
+    mock_clone.assert_called_with(url, ANY, shallow_branch=tag)
+    _, shallow = CLONES[url]
 
-    with patch.object(Git, "clone", wraps=Git.clone) as mock_clone:
-        with external_repo(url, rev="branch") as repo:
-            with repo.open_by_relpath("file") as fd:
-                assert fd.read() == "branch"
+    with external_repo(url, rev="master") as repo:
+        with repo.open_by_relpath("scores.json") as fd:
+            assert (
+                fd.read().strip()
+                == """{
+    "avg_prec": 0.6040544652105823,
+    "roc_auc": 0.9608017142900953
+}"""
+            )
+        assert repo.scm.has_rev(initial_commit)
 
-        mock_clone.assert_called_with(url, ANY, shallow_branch="branch")
-        _, shallow = CLONES[url]
-        assert shallow
-
-        with external_repo(url) as repo:
-            with repo.open_by_relpath("file") as fd:
-                assert fd.read() == "master"
-
-        assert mock_clone.call_count == 1
-        _, shallow = CLONES[url]
-        assert not shallow
-
-
-def test_shallow_clone_tag(erepo_dir):
-    with erepo_dir.chdir():
-        erepo_dir.dvc_gen("file", "foo", commit="init")
-        erepo_dir.scm.tag("v1")
-        erepo_dir.dvc_gen("file", "bar", commit="update file")
-
-    url = os.fspath(erepo_dir)
-
-    with patch.object(Git, "clone", wraps=Git.clone) as mock_clone:
-        with external_repo(url, rev="v1") as repo:
-            with repo.open_by_relpath("file") as fd:
-                assert fd.read() == "foo"
-
-        mock_clone.assert_called_with(url, ANY, shallow_branch="v1")
-        _, shallow = CLONES[url]
-        assert shallow
-
-        with external_repo(url, rev="master") as repo:
-            with repo.open_by_relpath("file") as fd:
-                assert fd.read() == "bar"
-
-        assert mock_clone.call_count == 1
-        _, shallow = CLONES[url]
-        assert not shallow
+    assert mock_clone.call_count == 1
+    _, shallow = CLONES[url]
+    assert not shallow
 
 
 def test_subrepos_are_ignored(tmp_dir, erepo_dir):

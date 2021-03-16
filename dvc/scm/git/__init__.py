@@ -424,6 +424,13 @@ class Git(Base):
                 return
             commit = self.resolve_commit(parent)
 
+    @property
+    def is_detached(self):
+        head = self.get_ref("HEAD", follow=False)
+        if head is None:
+            raise RevError("No commits in repo")
+        return not head.startswith("ref")
+
     @contextmanager
     def detach_head(self, rev: Optional[str] = None):
         """Context manager for performing detached HEAD SCM operations.

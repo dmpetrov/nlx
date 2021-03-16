@@ -195,7 +195,10 @@ def _clone_default_branch(url, rev, for_write=False):
                     CLONES[url] = (clone_path, shallow)
                 else:
                     logger.debug("erepo: git pull '%s'", url)
-                    git.pull()
+                    git.fetch()
+                    upstream = git.tracking_branch()
+                    if upstream:
+                        git.merge(upstream)
         else:
             logger.debug("erepo: git clone '%s' to a temporary dir", url)
             clone_path = tempfile.mkdtemp("dvc-clone")
@@ -214,6 +217,10 @@ def _clone_default_branch(url, rev, for_write=False):
             if not git:
                 git = Git.clone(url, clone_path)
                 shallow = False
+            if git and not git.is_detached and not git.tracking_branch():
+                # some git backends may not automatically set default tracking
+                # branch on clone (dulwich)
+                git.set_tracking_branch(f"origin/{git.active_branch()}")
             CLONES[url] = (clone_path, shallow)
     finally:
         if git:
@@ -223,16 +230,10 @@ def _clone_default_branch(url, rev, for_write=False):
 
 
 def _unshallow(git):
-    if git.gitpython.repo.head.is_detached:
-        # If this is a detached head (i.e. we shallow cloned a tag) switch to
-        # the default branch
-        origin_refs = git.gitpython.repo.remotes["origin"].refs
-        ref = origin_refs["HEAD"].reference
-        branch_name = ref.name.split("/")[-1]
-        branch = git.gitpython.repo.create_head(branch_name, ref)
-        branch.set_tracking_branch(ref)
-        branch.checkout()
-    git.pull(unshallow=True)
+    git.fetch(unshallow=True)
+    upstream = git.tracking_branch()
+    if upstream:
+        git.merge(upstream)
 
 
 def _git_checkout(repo_path, rev):

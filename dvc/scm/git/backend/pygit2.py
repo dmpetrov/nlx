@@ -525,7 +525,12 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
         msg: Optional[str] = None,
         squash: bool = False,
     ) -> Optional[str]:
-        from pygit2 import GIT_RESET_MIXED, GitError
+        from pygit2 import (
+            GIT_MERGE_ANALYSIS_FASTFORWARD,
+            GIT_MERGE_ANALYSIS_UP_TO_DATE,
+            GIT_RESET_MIXED,
+            GitError,
+        )
 
         if commit and squash:
             raise SCMError("Cannot merge with 'squash' and 'commit'")
@@ -535,6 +540,17 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
 
         try:
             self.repo.index.read(False)
+            analysis = self.repo.merge_analysis(rev)
+            if analysis == GIT_MERGE_ANALYSIS_UP_TO_DATE:
+                return None
+            if analysis == GIT_MERGE_ANALYSIS_FASTFORWARD:
+                obj, _ref = self.repo.resolve_refish(rev)
+                branch = self.get_ref("HEAD", follow=False)
+                assert branch
+                self.set_ref(
+                    branch, str(obj.id), message=f"merge {rev}: Fast-forward"
+                )
+                return str(obj.id)
             self.repo.merge(rev)
             self.repo.index.write()
         except GitError as exc:

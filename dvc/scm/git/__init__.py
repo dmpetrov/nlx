@@ -366,6 +366,8 @@ class Git(Base):
     is_tracked = partialmethod(_backend_func, "is_tracked")
     is_dirty = partialmethod(_backend_func, "is_dirty")
     active_branch = partialmethod(_backend_func, "active_branch")
+    tracking_branch = partialmethod(_backend_func, "tracking_branch")
+    set_tracking_branch = partialmethod(_backend_func, "set_tracking_branch")
     list_branches = partialmethod(_backend_func, "list_branches")
     list_tags = partialmethod(_backend_func, "list_tags")
     list_all_commits = partialmethod(_backend_func, "list_all_commits")

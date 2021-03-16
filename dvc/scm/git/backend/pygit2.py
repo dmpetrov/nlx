@@ -173,7 +173,31 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
         raise NotImplementedError
 
     def active_branch(self) -> str:
-        raise NotImplementedError
+        if self.repo.head_is_detached:
+            raise SCMError("No active branch (detached HEAD)")
+        return self.repo.head.shorthand
+
+    def tracking_branch(self) -> Optional[str]:
+        if self.repo.head_is_detached:
+            return None
+        try:
+            branch = self.repo.branches[self.repo.head.shorthand]
+            return branch.upstream_name
+        except KeyError:
+            return None
+
+    def set_tracking_branch(self, name: str):
+        if self.repo.head_is_detached:
+            return
+        try:
+            branch = self.repo.branches[self.repo.head.shorthand]
+        except KeyError:
+            raise SCMError("HEAD does not point to a valid branch")
+        try:
+            upstream_branch = self.repo.branches.remote[name]
+            branch.upstream = upstream_branch
+        except KeyError:
+            raise SCMError(f"Remote branch '{name}' not found")
 
     def list_branches(self) -> Iterable[str]:
         raise NotImplementedError

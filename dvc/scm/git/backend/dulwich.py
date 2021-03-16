@@ -282,6 +282,12 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
     def active_branch(self) -> str:
         raise NotImplementedError
 
+    def tracking_branch(self) -> Optional[str]:
+        raise NotImplementedError
+
+    def set_tracking_branch(self, name: str):
+        raise NotImplementedError
+
     def list_branches(self) -> Iterable[str]:
         raise NotImplementedError
 

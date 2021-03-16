@@ -117,6 +117,18 @@ class BaseGitBackend(ABC):
         pass
 
     @abstractmethod
+    def tracking_branch(self) -> Optional[str]:
+        """Return refname for the current upstream tracking branch.
+
+        Returns None if HEAD is detached or there is no upstream set for
+        the current active branch.
+        """
+
+    @abstractmethod
+    def set_tracking_branch(self, name: str):
+        """Set upstream tracking branch for the current HEAD branch."""
+
+    @abstractmethod
     def list_branches(self) -> Iterable[str]:
         pass
 

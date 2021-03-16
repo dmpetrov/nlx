@@ -277,6 +277,20 @@ class GitPythonBackend(BaseGitBackend):  # pylint:disable=abstract-method
     def active_branch(self):
         return self.repo.active_branch.name
 
+    def tracking_branch(self) -> Optional[str]:
+        if self.repo.head.is_detached:
+            return None
+        return self.repo.active_branch.tracking_branch().path
+
+    def set_tracking_branch(self, name: str):
+        if self.repo.head.is_detached:
+            return
+        try:
+            upstream = self.repo.refs[name]
+            self.repo.active_branch.set_tracking_branch(upstream)
+        except IndexError:
+            raise SCMError(f"Remote branch '{name}' not found")
+
     def list_branches(self):
         return [h.name for h in self.repo.heads]
 

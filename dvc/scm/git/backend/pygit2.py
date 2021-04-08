@@ -527,6 +527,8 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
     ) -> Optional[str]:
         from pygit2 import (
             GIT_MERGE_ANALYSIS_FASTFORWARD,
+            GIT_MERGE_ANALYSIS_NORMAL,
+            GIT_MERGE_ANALYSIS_UNBORN,
             GIT_MERGE_ANALYSIS_UP_TO_DATE,
             GIT_RESET_MIXED,
             GitError,
@@ -535,22 +537,28 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
         if commit and squash:
             raise SCMError("Cannot merge with 'squash' and 'commit'")
 
-        if commit and not msg:
-            raise SCMError("Merge commit message is required")
-
         try:
             self.repo.index.read(False)
-            analysis = self.repo.merge_analysis(rev)
-            if analysis == GIT_MERGE_ANALYSIS_UP_TO_DATE:
+            obj, _ref = self.repo.resolve_refish(rev)
+            analysis, _ff = self.repo.merge_analysis(obj.id)
+            if analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE:
                 return None
-            if analysis == GIT_MERGE_ANALYSIS_FASTFORWARD:
-                obj, _ref = self.repo.resolve_refish(rev)
+            if analysis & GIT_MERGE_ANALYSIS_FASTFORWARD:
                 branch = self.get_ref("HEAD", follow=False)
                 assert branch
                 self.set_ref(
                     branch, str(obj.id), message=f"merge {rev}: Fast-forward"
                 )
                 return str(obj.id)
+            if analysis & GIT_MERGE_ANALYSIS_UNBORN:
+                self.repo.set_head(obj.id)
+                return str(obj.id)
+            if not analysis & GIT_MERGE_ANALYSIS_NORMAL:
+                raise SCMError(f"Cannot merge '{rev}' into current HEAD")
+
+            if commit and not msg:
+                raise SCMError("Merge commit message is required")
+
             self.repo.merge(rev)
             self.repo.index.write()
         except GitError as exc:

@@ -33,11 +33,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-# git fetch --unshallow calls git-fetch-pack with depth = 2^31 - 1
-# see commit.h in git source
-GIT_INFINITE_DEPTH = 0x7FFFFFFF
-
-
 class DulwichObject(GitObject):
     def __init__(self, repo, name, mode, sha):
         self.repo = repo
@@ -237,13 +232,14 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
         unshallow: bool = False,
     ):
         from dulwich.porcelain import fetch
+        from dulwich.protocol import DEPTH_INFINITE
 
         remote_b = os.fsencode(remote) if remote else b"origin"
         fetch(
             self.repo,
             remote_location=remote_b,
             force=force,
-            depth=GIT_INFINITE_DEPTH if unshallow else None,
+            depth=DEPTH_INFINITE if unshallow else None,
         )
 
     def pull(self, **kwargs):

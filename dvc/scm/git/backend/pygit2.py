@@ -554,7 +554,7 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
             return None
 
         try:
-            self.repo.merge(rev)
+            self.repo.merge(obj.id)
             self.repo.index.write()
         except GitError as exc:
             raise SCMError("Merge failed") from exc

@@ -175,6 +175,8 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
     def active_branch(self) -> str:
         if self.repo.head_is_detached:
             raise SCMError("No active branch (detached HEAD)")
+        if self.repo.head_is_unborn:
+            raise SCMError("No active branch (unborn HEAD)")
         return self.repo.head.shorthand
 
     def tracking_branch(self) -> Optional[str]:

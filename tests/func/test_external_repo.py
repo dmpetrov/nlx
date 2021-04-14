@@ -126,31 +126,22 @@ def test_relative_remote(erepo_dir, tmp_dir):
 
 
 def test_shallow_clone(mocker):
-    initial_commit = "d440c4b9fd17710568abd41068647e097c0e67bd"
-    url = "https://github.com/iterative/example-get-started.git"
-    tag = "10-bigrams-experiment"
+    initial_rev = "595ac51b5af753aad17b71bcbd7cd8277d3c2c56"
+    tag = "2.0.0"
+    tag_rev = "c3a0e8733e799e3c49e5ab6b9a8e32f365553f97"
+    url = "https://github.com/iterative/dvc.git"
+
     mock_clone = mocker.patch.object(Git, "clone", wraps=Git.clone)
     with external_repo(url, rev=tag) as repo:
-        with repo.open_by_relpath("scores.json") as fd:
-            assert fd.read().strip() == (
-                '{"avg_prec": 0.5525903977371824, '
-                '"roc_auc": 0.9153617182768166}'
-            )
-        assert not repo.scm.has_rev(initial_commit)
+        assert repo.get_rev() == tag_rev
+        assert not repo.scm.has_rev(initial_rev)
 
     mock_clone.assert_called_with(url, ANY, shallow_branch=tag)
     _, shallow = CLONES[url]
 
     with external_repo(url, rev="master") as repo:
-        with repo.open_by_relpath("scores.json") as fd:
-            assert (
-                fd.read().strip()
-                == """{
-    "avg_prec": 0.6040544652105823,
-    "roc_auc": 0.9608017142900953
-}"""
-            )
-        assert repo.scm.has_rev(initial_commit)
+        assert repo.get_rev() == repo.scm.get_ref("refs/remotes/origin/master")
+        assert repo.scm.has_rev(initial_rev)
 
     assert mock_clone.call_count == 1
     _, shallow = CLONES[url]

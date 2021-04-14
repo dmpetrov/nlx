@@ -21,7 +21,7 @@ from funcy import cached_property
 
 from dvc.path_info import PathInfo
 from dvc.progress import Tqdm
-from dvc.scm.base import SCMError
+from dvc.scm.base import CloneError, SCMError
 from dvc.utils import relpath
 
 from ..objects import GitObject
@@ -143,7 +143,7 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
             else:
                 clone_from()
         except Exception as exc:
-            raise SCMError(f"Failed to clone '{url}'") from exc
+            raise CloneError(url, to_path) from exc
 
     @property
     def dir(self) -> str:

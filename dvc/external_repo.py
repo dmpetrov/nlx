@@ -208,10 +208,13 @@ def _clone_default_branch(url, rev, for_write=False):
 
                 try:
                     git = Git.clone(url, clone_path, shallow_branch=rev)
-                    shallow = True
-                    logger.debug(
-                        "erepo: using shallow clone for branch '%s'", rev
+                    shallow = os.path.exists(
+                        os.path.join(clone_path, Git.GIT_DIR, "shallow")
                     )
+                    if shallow:
+                        logger.debug(
+                            "erepo: using shallow clone for branch '%s'", rev
+                        )
                 except CloneError:
                     pass
             if not git:

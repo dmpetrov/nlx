@@ -126,22 +126,19 @@ def test_relative_remote(erepo_dir, tmp_dir):
 
 
 def test_shallow_clone(mocker):
-    initial_rev = "595ac51b5af753aad17b71bcbd7cd8277d3c2c56"
-    tag = "2.0.0"
-    tag_rev = "c3a0e8733e799e3c49e5ab6b9a8e32f365553f97"
-    url = "https://github.com/iterative/dvc.git"
+    tag = "9-bigrams-model"
+    url = "https://github.com/iterative/example-get-started.git"
 
     mock_clone = mocker.patch.object(Git, "clone", wraps=Git.clone)
     with external_repo(url, rev=tag) as repo:
-        assert repo.get_rev() == tag_rev
-        assert not repo.scm.has_rev(initial_rev)
+        assert repo.get_rev() == repo.scm.get_ref(f"refs/tags/{tag}")
 
     mock_clone.assert_called_with(url, ANY, shallow_branch=tag)
     _, shallow = CLONES[url]
+    assert shallow
 
     with external_repo(url, rev="master") as repo:
         assert repo.get_rev() == repo.scm.get_ref("refs/remotes/origin/master")
-        assert repo.scm.has_rev(initial_rev)
 
     assert mock_clone.call_count == 1
     _, shallow = CLONES[url]

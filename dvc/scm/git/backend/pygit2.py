@@ -532,7 +532,6 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
             GIT_MERGE_ANALYSIS_NONE,
             GIT_MERGE_ANALYSIS_UNBORN,
             GIT_MERGE_ANALYSIS_UP_TO_DATE,
-            GIT_RESET_MIXED,
             GitError,
         )
 
@@ -600,8 +599,8 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
                 self.repo.state_cleanup()
                 return str(merge_commit)
 
-            # squash
-            self.repo.reset(self.repo.head.target, GIT_RESET_MIXED)
+            # --squash merge:
+            # HEAD is not moved and merge changes stay in index
             return None
         finally:
             self.repo.state_cleanup()

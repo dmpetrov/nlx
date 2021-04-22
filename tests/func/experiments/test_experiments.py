@@ -618,9 +618,11 @@ def test_fix_exp_head(tmp_dir, scm, tail):
     from dvc.repo.experiments.base import EXEC_BASELINE
     from dvc.repo.experiments.utils import fix_exp_head
 
+    tmp_dir.scm_gen("foo", "foo", commit="foo")
+    rev = scm.get_rev()
     head = "HEAD" + tail
     assert head == fix_exp_head(scm, head)
 
-    scm.set_ref(EXEC_BASELINE, "refs/heads/master")
+    scm.set_ref(EXEC_BASELINE, rev)
     assert EXEC_BASELINE + tail == fix_exp_head(scm, head)
     assert "foo" + tail == fix_exp_head(scm, "foo" + tail)

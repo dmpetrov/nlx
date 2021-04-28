@@ -36,7 +36,7 @@ jaraco.windows==5.5.0
 # pylint requirements
 pylint==2.8.2
 # we use this to suppress pytest-related false positives in our tests.
-pylint-pytest==1.0.3
+pylint-pytest==1.1.2
 # we use this to suppress some messages in tests, eg: foo/bar naming,
 # and, protected method calls in our tests
 pylint-plugin-utils==0.6

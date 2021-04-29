@@ -76,6 +76,15 @@ class BaseGitBackend(ABC):
         pass
 
     @abstractmethod
+    def fetch(
+        self,
+        remote: Optional[str] = None,
+        force: bool = False,
+        unshallow: bool = False,
+    ):
+        pass
+
+    @abstractmethod
     def pull(self, **kwargs):
         pass
 
@@ -106,6 +115,18 @@ class BaseGitBackend(ABC):
     @abstractmethod
     def active_branch(self) -> str:
         pass
+
+    @abstractmethod
+    def tracking_branch(self) -> Optional[str]:
+        """Return refname for the current upstream tracking branch.
+
+        Returns None if HEAD is detached or there is no upstream set for
+        the current active branch.
+        """
+
+    @abstractmethod
+    def set_tracking_branch(self, name: str):
+        """Set upstream tracking branch for the current HEAD branch."""
 
     @abstractmethod
     def list_branches(self) -> Iterable[str]:

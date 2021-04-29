@@ -137,6 +137,14 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
             else:
                 self.repo.set_head(commit.id)
 
+    def fetch(
+        self,
+        remote: Optional[str] = None,
+        force: bool = False,
+        unshallow: bool = False,
+    ):
+        raise NotImplementedError
+
     def pull(self, **kwargs):
         raise NotImplementedError
 
@@ -165,7 +173,33 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
         raise NotImplementedError
 
     def active_branch(self) -> str:
-        raise NotImplementedError
+        if self.repo.head_is_detached:
+            raise SCMError("No active branch (detached HEAD)")
+        if self.repo.head_is_unborn:
+            raise SCMError("No active branch (unborn HEAD)")
+        return self.repo.head.shorthand
+
+    def tracking_branch(self) -> Optional[str]:
+        if self.repo.head_is_detached:
+            return None
+        try:
+            branch = self.repo.branches[self.repo.head.shorthand]
+            return branch.upstream_name
+        except KeyError:
+            return None
+
+    def set_tracking_branch(self, name: str):
+        if self.repo.head_is_detached:
+            return
+        try:
+            branch = self.repo.branches[self.repo.head.shorthand]
+        except KeyError:
+            raise SCMError("HEAD does not point to a valid branch")
+        try:
+            upstream_branch = self.repo.branches.remote[name]
+            branch.upstream = upstream_branch
+        except KeyError:
+            raise SCMError(f"Remote branch '{name}' not found")
 
     def list_branches(self) -> Iterable[str]:
         raise NotImplementedError
@@ -493,17 +527,33 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
         msg: Optional[str] = None,
         squash: bool = False,
     ) -> Optional[str]:
-        from pygit2 import GIT_RESET_MIXED, GitError
+        from pygit2 import (
+            GIT_MERGE_ANALYSIS_FASTFORWARD,
+            GIT_MERGE_ANALYSIS_NONE,
+            GIT_MERGE_ANALYSIS_UNBORN,
+            GIT_MERGE_ANALYSIS_UP_TO_DATE,
+            GitError,
+        )
+
+        # TODO: these enum fields are not currently importable in pygit
+        # see https://github.com/libgit2/pygit2/pull/1071
+        GIT_MERGE_PREFERENCE_NO_FASTFORWARD = 1 << 0
+        GIT_MERGE_PREFERENCE_FASTFORWARD_ONLY = 2 << 1
 
         if commit and squash:
             raise SCMError("Cannot merge with 'squash' and 'commit'")
 
-        if commit and not msg:
-            raise SCMError("Merge commit message is required")
+        self.repo.index.read(False)
+        obj, _ref = self.repo.resolve_refish(rev)
+        analysis, ff_pref = self.repo.merge_analysis(obj.id)
+
+        if analysis == GIT_MERGE_ANALYSIS_NONE:
+            raise SCMError(f"'{rev}' cannot be merged into HEAD")
+        if analysis & GIT_MERGE_ANALYSIS_UP_TO_DATE:
+            return None
 
         try:
-            self.repo.index.read(False)
-            self.repo.merge(rev)
+            self.repo.merge(obj.id)
             self.repo.index.write()
         except GitError as exc:
             raise SCMError("Merge failed") from exc
@@ -511,15 +561,47 @@ class Pygit2Backend(BaseGitBackend):  # pylint:disable=abstract-method
         if self.repo.index.conflicts:
             raise MergeConflictError("Merge contained conflicts")
 
-        if commit:
-            user = self.default_signature
-            tree = self.repo.index.write_tree()
-            merge_commit = self.repo.create_commit(
-                "HEAD", user, user, msg, tree, [self.repo.head.target, rev]
-            )
-            return str(merge_commit)
-        if squash:
-            self.repo.reset(self.repo.head.target, GIT_RESET_MIXED)
+        try:
+            if not (squash or ff_pref & GIT_MERGE_PREFERENCE_NO_FASTFORWARD):
+                if analysis & GIT_MERGE_ANALYSIS_FASTFORWARD:
+                    if self.repo.head_is_detached:
+                        self.repo.set_head(obj.id)
+                    else:
+                        branch = self.get_ref("HEAD", follow=False)
+                        assert branch
+                        self.set_ref(
+                            branch,
+                            str(obj.id),
+                            message=f"merge {rev}: Fast-forward",
+                        )
+                    return str(obj.id)
+
+                if analysis & GIT_MERGE_ANALYSIS_UNBORN:
+                    self.repo.set_head(obj.id)
+                    return str(obj.id)
+
+            if ff_pref & GIT_MERGE_PREFERENCE_FASTFORWARD_ONLY:
+                raise SCMError("Cannot fast-forward HEAD to '{rev}'")
+
+            if commit:
+                if not msg:
+                    raise SCMError("Merge commit message is required")
+                user = self.default_signature
+                tree = self.repo.index.write_tree()
+                merge_commit = self.repo.create_commit(
+                    "HEAD",
+                    user,
+                    user,
+                    msg,
+                    tree,
+                    [self.repo.head.target, obj.id],
+                )
+                self.repo.state_cleanup()
+                return str(merge_commit)
+
+            # --squash merge:
+            # HEAD is not moved and merge changes stay in index
+            return None
+        finally:
             self.repo.state_cleanup()
             self.repo.index.write()
-        return None

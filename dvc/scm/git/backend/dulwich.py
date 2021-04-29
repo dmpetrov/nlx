@@ -3,6 +3,7 @@ import locale
 import logging
 import os
 import stat
+from functools import partial
 from io import BytesIO, StringIO
 from typing import (
     TYPE_CHECKING,
@@ -20,7 +21,7 @@ from funcy import cached_property
 
 from dvc.path_info import PathInfo
 from dvc.progress import Tqdm
-from dvc.scm.base import SCMError
+from dvc.scm.base import CloneError, SCMError
 from dvc.utils import relpath
 
 from ..objects import GitObject
@@ -120,7 +121,29 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
         rev: Optional[str] = None,
         shallow_branch: Optional[str] = None,
     ):
-        raise NotImplementedError
+        from urllib.parse import urlparse
+
+        from dulwich.porcelain import clone as git_clone
+
+        if rev:
+            raise NotImplementedError
+
+        try:
+            clone_from = partial(git_clone, url, target=to_path)
+            if shallow_branch:
+                # NOTE: dulwich only supports shallow/depth for non-local
+                # clones. This differs from CLI git, where depth is used for
+                # file:// URLs but not direct local paths
+                parsed = urlparse(url)
+                if not parsed.scheme or parsed.scheme == "file":
+                    depth = 0
+                else:
+                    depth = 1
+                clone_from(depth=depth, branch=os.fsencode(shallow_branch))
+            else:
+                clone_from()
+        except Exception as exc:
+            raise CloneError(url, to_path) from exc
 
     @property
     def dir(self) -> str:
@@ -202,6 +225,23 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
     ):
         raise NotImplementedError
 
+    def fetch(
+        self,
+        remote: Optional[str] = None,
+        force: bool = False,
+        unshallow: bool = False,
+    ):
+        from dulwich.porcelain import fetch
+        from dulwich.protocol import DEPTH_INFINITE
+
+        remote_b = os.fsencode(remote) if remote else b"origin"
+        fetch(
+            self.repo,
+            remote_location=remote_b,
+            force=force,
+            depth=DEPTH_INFINITE if unshallow else None,
+        )
+
     def pull(self, **kwargs):
         raise NotImplementedError
 
@@ -236,6 +276,12 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
         return bool(staged or unstaged or (untracked_files and untracked))
 
     def active_branch(self) -> str:
+        raise NotImplementedError
+
+    def tracking_branch(self) -> Optional[str]:
+        raise NotImplementedError
+
+    def set_tracking_branch(self, name: str):
         raise NotImplementedError
 
     def list_branches(self) -> Iterable[str]:
@@ -307,12 +353,16 @@ class DulwichBackend(BaseGitBackend):  # pylint:disable=abstract-method
             raise SCMError(f"Failed to set '{name}'")
 
     def get_ref(self, name, follow: bool = True) -> Optional[str]:
+        from dulwich.objects import Tag
         from dulwich.refs import parse_symref_value
 
         name_b = os.fsencode(name)
         if follow:
             try:
                 ref = self.repo.refs[name_b]
+                obj = self.repo[ref]
+                if isinstance(obj, Tag):
+                    _, ref = obj.object
             except KeyError:
                 ref = None
         else:

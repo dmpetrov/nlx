@@ -228,6 +228,24 @@ class GitPythonBackend(BaseGitBackend):  # pylint:disable=abstract-method
         else:
             self.repo.git.checkout(branch, force=force, **kwargs)
 
+    def fetch(
+        self,
+        remote: Optional[str] = None,
+        force: bool = False,
+        unshallow: bool = False,
+    ):
+        if not remote:
+            remote = "origin"
+        kwargs = {}
+        if force:
+            kwargs["force"] = True
+        if unshallow:
+            kwargs["unshallow"] = True
+        infos = self.repo.remote(name=remote).fetch(**kwargs)
+        for info in infos:
+            if info.flags & info.ERROR:
+                raise SCMError(f"fetch failed: {info.note}")
+
     def pull(self, **kwargs):
         infos = self.repo.remote().pull(**kwargs)
         for info in infos:
@@ -258,6 +276,20 @@ class GitPythonBackend(BaseGitBackend):  # pylint:disable=abstract-method
 
     def active_branch(self):
         return self.repo.active_branch.name
+
+    def tracking_branch(self) -> Optional[str]:
+        if self.repo.head.is_detached:
+            return None
+        return self.repo.active_branch.tracking_branch().path
+
+    def set_tracking_branch(self, name: str):
+        if self.repo.head.is_detached:
+            return
+        try:
+            upstream = self.repo.refs[name]
+            self.repo.active_branch.set_tracking_branch(upstream)
+        except IndexError:
+            raise SCMError(f"Remote branch '{name}' not found")
 
     def list_branches(self):
         return [h.name for h in self.repo.heads]

@@ -359,6 +359,7 @@ class Git(Base):
     add = partialmethod(_backend_func, "add")
     commit = partialmethod(_backend_func, "commit")
     checkout = partialmethod(_backend_func, "checkout")
+    fetch = partialmethod(_backend_func, "fetch")
     pull = partialmethod(_backend_func, "pull")
     push = partialmethod(_backend_func, "push")
     branch = partialmethod(_backend_func, "branch")
@@ -367,6 +368,8 @@ class Git(Base):
     is_tracked = partialmethod(_backend_func, "is_tracked")
     is_dirty = partialmethod(_backend_func, "is_dirty")
     active_branch = partialmethod(_backend_func, "active_branch")
+    tracking_branch = partialmethod(_backend_func, "tracking_branch")
+    set_tracking_branch = partialmethod(_backend_func, "set_tracking_branch")
     list_branches = partialmethod(_backend_func, "list_branches")
     list_tags = partialmethod(_backend_func, "list_tags")
     list_all_commits = partialmethod(_backend_func, "list_all_commits")
@@ -424,6 +427,13 @@ class Git(Base):
             if parent is None or parent == end_rev:
                 return
             commit = self.resolve_commit(parent)
+
+    @property
+    def is_detached(self):
+        head = self.get_ref("HEAD", follow=False)
+        if head is None:
+            raise RevError("No commits in repo")
+        return not head.startswith("ref")
 
     @contextmanager
     def detach_head(self, rev: Optional[str] = None):

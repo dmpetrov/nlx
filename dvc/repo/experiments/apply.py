@@ -43,7 +43,7 @@ def apply(repo, rev, force=True, **kwargs):
     else:
         workspace = None
 
-    repo.scm.merge(exp_rev, commit=False)
+    repo.scm.merge(exp_rev, commit=False, squash=True)
 
     if workspace:
         try:

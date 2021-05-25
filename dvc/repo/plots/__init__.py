@@ -1,17 +1,13 @@
 import logging
 import os
-from typing import TYPE_CHECKING, Dict, List, Optional
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from funcy import cached_property, first, project
 
-from dvc.exceptions import (
-    DvcException,
-    MetricDoesNotExistError,
-    NoMetricsFoundError,
-    NoMetricsParsedError,
-)
+from dvc.exceptions import DvcException
+from dvc.repo.collect import DvcPaths, Outputs
 from dvc.types import StrPath
-from dvc.utils import relpath
+from dvc.utils import handle_error, intercept_error, relpath
 
 if TYPE_CHECKING:
     from dvc.output import Output
@@ -41,6 +37,7 @@ class Plots:
         targets: List[str] = None,
         revs: List[str] = None,
         recursive: bool = False,
+        onerror: Callable = None,
     ) -> Dict[str, Dict]:
         """Collects all props and data for plots.
 
@@ -51,78 +48,55 @@ class Plots:
             }}}
         Data parsing is postponed, since it's affected by props.
         """
-        from dvc.config import NoRemoteError
         from dvc.fs.repo import RepoFileSystem
         from dvc.utils.collections import ensure_list
 
         targets = ensure_list(targets)
         data: Dict[str, Dict] = {}
         for rev in self.repo.brancher(revs=revs):
-            # .brancher() adds unwanted workspace
-            if revs is not None and rev not in revs:
-                continue
-            rev = rev or "workspace"
+            with intercept_error(onerror=onerror, revision=rev):
+                # .brancher() adds unwanted workspace
+                if revs is not None and rev not in revs:
+                    continue
+                rev = rev or "workspace"
 
-            fs = RepoFileSystem(self.repo)
-            plots = _collect_plots(self.repo, targets, rev, recursive)
-            for path_info, props in plots.items():
+                fs = RepoFileSystem(self.repo)
+                plots = _collect_plots(
+                    self.repo, targets, rev, recursive, onerror=onerror
+                )
+                for path_info, props in plots.items():
 
-                if rev not in data:
-                    data[rev] = {}
+                    if rev not in data:
+                        data[rev] = {}
 
-                if fs.isdir(path_info):
-                    plot_files = []
-                    try:
+                    if fs.isdir(path_info):
+                        plot_files = []
                         for pi in fs.walk_files(path_info):
                             plot_files.append(
                                 (pi, relpath(pi, self.repo.root_dir))
                             )
-                    except NoRemoteError:
-                        logger.debug(
-                            (
-                                "Could not find cache for directory '%s' on "
-                                "'%s'. Files inside will not be plotted."
-                            ),
-                            path_info,
-                            rev,
-                        )
-                        continue
-                else:
-                    plot_files = [
-                        (path_info, relpath(path_info, self.repo.root_dir))
-                    ]
+                    else:
+                        plot_files = [
+                            (path_info, relpath(path_info, self.repo.root_dir))
+                        ]
 
-                for path, repo_path in plot_files:
-                    data[rev].update({repo_path: {"props": props}})
-
-                    # Load data from git or dvc cache
-                    try:
-                        with fs.open(path) as fd:
-                            data[rev][repo_path]["data"] = fd.read()
-                    except FileNotFoundError:
-                        # This might happen simply because cache is absent
-                        logger.debug(
-                            (
-                                "Could not find '%s' on '%s'. "
-                                "File will not be plotted"
-                            ),
-                            path,
-                            rev,
-                        )
-                    except UnicodeDecodeError:
-                        logger.debug(
-                            (
-                                "'%s' at '%s' is binary file. It will not be "
-                                "plotted."
-                            ),
-                            path,
-                            rev,
-                        )
+                    for path, repo_path in plot_files:
+                        with intercept_error(
+                            onerror, revision=rev, path=repo_path
+                        ), fs.open(path) as fd:
+                            data[rev].update(
+                                {
+                                    repo_path: {
+                                        "data": fd.read(),
+                                        "props": props,
+                                    }
+                                }
+                            )
 
         return data
 
     @staticmethod
-    def render(data, revs=None, props=None, templates=None):
+    def render(data, revs=None, props=None, templates=None, onerror=None):
         """Renders plots"""
         from dvc.repo.plots.data import PlotParsingError
 
@@ -138,16 +112,7 @@ class Plots:
                     datafile, desc["data"], desc["props"], templates
                 )
             except PlotParsingError as e:
-                logger.debug(
-                    "failed to read '%s' on '%s'",
-                    e.path,
-                    e.revision,
-                    exc_info=True,
-                )
-
-        if not any(result.values()):
-            raise NoMetricsParsedError("plots")
-
+                handle_error(e, onerror, revision=e.revision, path=e.path)
         return result
 
     def show(
@@ -157,29 +122,13 @@ class Plots:
         props=None,
         templates=None,
         recursive=False,
+        onerror=None,
     ):
-        from dvc.utils.collections import ensure_list
-
-        data = self.collect(targets, revs, recursive)
-
-        # If any mentioned plot doesn't have any data then that's an error
-        for target in ensure_list(targets):
-            rpath = relpath(target, self.repo.root_dir)
-            if not any(
-                "data" in rev_data[key]
-                for rev_data in data.values()
-                for key, d in rev_data.items()
-                if rpath in key
-            ):
-                raise MetricDoesNotExistError([target])
-
-        # No data at all is a special error with a special message
-        if not data:
-            raise NoMetricsFoundError("plots", "--plots/--plots-no-cache")
+        data = self.collect(targets, revs, recursive, onerror=onerror)
 
         if templates is None:
             templates = self.templates
-        return self.render(data, revs, props, templates)
+        return self.render(data, revs, props, templates, onerror=onerror)
 
     def diff(self, *args, **kwargs):
         from .diff import diff
@@ -263,16 +212,21 @@ def _collect_plots(
     targets: List[str] = None,
     rev: str = None,
     recursive: bool = False,
+    onerror: Callable = None,
 ) -> Dict[str, Dict]:
     from dvc.repo.collect import collect
 
-    plots, path_infos = collect(
-        repo,
-        output_filter=_is_plot,
-        targets=targets,
-        rev=rev,
-        recursive=recursive,
-    )
+    plots: Outputs = []
+    path_infos: DvcPaths = []
+    with intercept_error(onerror, revision=rev):
+        plots, path_infos = collect(
+            repo,
+            output_filter=_is_plot,
+            targets=targets,
+            rev=rev,
+            recursive=recursive,
+        )
+
     result = {plot.path_info: _plot_props(plot) for plot in plots}
     result.update({path_info: {} for path_info in path_infos})
     return result

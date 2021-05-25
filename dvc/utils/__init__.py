@@ -9,6 +9,7 @@ import re
 import stat
 import sys
 import time
+from contextlib import contextmanager
 from typing import Optional, Tuple
 
 import colorama
@@ -480,3 +481,45 @@ def glob_targets(targets, glob=True, recursive=True):
         for target in targets
         for exp_target in iglob(target, recursive=recursive)
     ]
+
+
+@contextmanager
+def intercept_error(onerror=None, **kwargs):
+    try:
+        yield
+    except Exception as e:  # pylint: disable=W0703
+        handle_error(e, onerror, **kwargs)
+
+
+def handle_error(exc, onerror=None, **kwargs):
+    logger.debug("", exc_info=True)
+    if onerror is not None:
+        onerror(exc, **kwargs)
+
+
+class Onerror:
+    def __init__(self):
+        self.errors = {}
+
+    def __call__(self, exception: Exception, revision=None, path=None):
+        path_d = None
+        if path:
+            path_d = {path: exception}
+
+        rev_d = None
+        if revision:
+            rev_d = {revision: path_d or exception}
+
+        self.errors.update(rev_d or {})
+
+    def rev_failed(self, revision):
+        return isinstance(self.errors.get(revision, None), Exception)
+
+    def path_failed(self, revision, path):
+        if self.rev_failed(revision):
+            return True
+
+        if self.errors.get(revision, {}).get(path, None):
+            return True
+
+        return False

@@ -10,7 +10,8 @@ from dvc.main import main
 from dvc.repo.experiments.base import EXPS_STASH, ExpRefInfo
 from dvc.repo.experiments.executor.base import BaseExecutor, ExecutorInfo
 from dvc.utils.fs import makedirs
-from dvc.utils.serialize import dump_yaml
+from dvc.utils import Onerror
+from dvc.utils.serialize import YAMLFileCorruptedError, dump_yaml
 from tests.func.test_repro_multistage import COPY_SCRIPT
 
 
@@ -434,3 +435,27 @@ def test_show_running_checkpoint(
     assert results[baseline_rev][checkpoint_rev]["running"]
     assert results[baseline_rev][checkpoint_rev]["executor"] == info.location
     assert not results["workspace"]["baseline"]["running"]
+
+
+def test_error_onerror(tmp_dir, scm, dvc, exp_stage, caplog):
+    baseline_rev = scm.get_rev()
+    exp1 = dvc.experiments.run(exp_stage.addressing, params=["foo=2"])
+    exp2 = dvc.experiments.run(exp_stage.addressing, params=["foo=3"])
+
+    with open("dvc.yaml", "a") as fd:
+        fd.write("breaking the yaml!")
+
+    onerror = Onerror()
+
+    result = dvc.experiments.show(onerror=onerror)
+    rev1 = first(exp1)
+    rev2 = first(exp2)
+
+    assert result[baseline_rev][rev1]["params"]["params.yaml"] == {"foo": 2}
+    assert result[baseline_rev][rev2]["params"]["params.yaml"] == {"foo": 3}
+
+    assert isinstance(onerror.errors["workspace"], YAMLFileCorruptedError)
+
+    caplog.clear()
+
+    assert main(["experiments", "show", "--no-pager"]) == 0

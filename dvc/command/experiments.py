@@ -1,6 +1,7 @@
 import argparse
 import logging
 from collections import Counter, OrderedDict, defaultdict
+from copy import deepcopy
 from datetime import date, datetime
 from fnmatch import fnmatch
 from typing import TYPE_CHECKING, Dict, Iterable, Optional
@@ -15,6 +16,7 @@ from dvc.command.repro import CmdRepro
 from dvc.command.repro import add_arguments as add_repro_arguments
 from dvc.exceptions import DvcException, InvalidArgumentError
 from dvc.ui import ui
+from dvc.utils import Onerror
 from dvc.utils.flatten import flatten
 
 if TYPE_CHECKING:
@@ -28,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 SHOW_MAX_WIDTH = 1024
 FILL_VALUE = "-"
+FILL_VALUE_ERRORED = "!"
 
 
 def _filter_name(names, label, filter_strs):
@@ -95,6 +98,21 @@ def _update_names(names, items):
             names[name].update({key: None for key in item})
 
 
+def _fill_empty_values(error_collector, rev, names):
+    fill_values = deepcopy(names)
+
+    fill_val = FILL_VALUE
+    for file, val_dict in names.items():
+        if error_collector.path_failed(
+            rev, file
+        ) or error_collector.rev_failed(rev):
+            fill_val = FILL_VALUE_ERRORED
+        for val_name, _ in val_dict.items():
+            fill_values[file][val_name] = fill_val
+
+    return fill_values
+
+
 def _collect_names(all_experiments, **kwargs):
     metric_names = defaultdict(dict)
     param_names = defaultdict(dict)
@@ -137,6 +155,7 @@ def _collect_rows(
     precision=DEFAULT_PRECISION,
     sort_by=None,
     sort_order=None,
+    error_collector=None,
 ):
     from dvc.scm.git import Git
 
@@ -159,11 +178,6 @@ def _collect_rows(
             state = FILL_VALUE
         executor = exp.get("executor", FILL_VALUE)
         is_baseline = rev == "baseline"
-
-        if is_baseline:
-            name_rev = base_rev[:7] if Git.is_sha(base_rev) else base_rev
-        else:
-            name_rev = rev[:7]
 
         exp_name = exp.get("name", "")
         tip = exp.get("checkpoint_tip")
@@ -193,6 +207,13 @@ def _collect_rows(
         if not is_baseline:
             new_checkpoint = not (tip and tip == parent_tip)
 
+        error_rev = base_rev
+        if is_baseline:
+            name_rev = base_rev[:7] if Git.is_sha(base_rev) else base_rev
+        else:
+            name_rev = rev[:7]
+            error_rev = rev
+
         row = [
             exp_name,
             name_rev,
@@ -202,10 +223,19 @@ def _collect_rows(
             state,
             executor,
         ]
-        _extend_row(
-            row, metric_names, exp.get("metrics", {}).items(), precision
+        metric_names_filled = _fill_empty_values(
+            error_collector, error_rev, metric_names
         )
-        _extend_row(row, param_names, exp.get("params", {}).items(), precision)
+        param_names_filled = _fill_empty_values(
+            error_collector, error_rev, param_names
+        )
+        _extend_row(
+            row,
+            metric_names_filled,
+            exp.get("metrics", {}),
+            precision,
+        )
+        _extend_row(row, param_names_filled, exp.get("params", {}), precision)
 
         yield row
 
@@ -273,14 +303,10 @@ def _extend_row(row, names, items, precision):
 
     from dvc.compare import _format_field, with_value
 
-    if not items:
-        row.extend(FILL_VALUE for keys in names.values() for _ in keys)
-        return
-
-    for fname, item in items:
-        item = flatten(item) if isinstance(item, dict) else {fname: item}
-        for name in names[fname]:
-            value = with_value(item.get(name), FILL_VALUE)
+    for fname, item in names.items():
+        for key, fill_value in item.items():
+            actual_value = items.get(fname, {}).get(key, None)
+            value = with_value(actual_value, fill_value)
             # wrap field data in rich.Text, otherwise rich may
             # interpret unescaped braces from list/dict types as rich
             # markup tags
@@ -307,6 +333,7 @@ def experiments_table(
     sort_by=None,
     sort_order=None,
     precision=DEFAULT_PRECISION,
+    error_collector: Onerror = None,
 ) -> "TabularData":
     from funcy import lconcat
 
@@ -333,6 +360,7 @@ def experiments_table(
             sort_by=sort_by,
             sort_order=sort_order,
             precision=precision,
+            error_collector=error_collector,
         )
         td.extend(rows)
 
@@ -391,6 +419,7 @@ def show_experiments(
         kwargs.get("sort_by"),
         kwargs.get("sort_order"),
         kwargs.get("precision"),
+        kwargs.get("error_collector"),
     )
 
     if no_timestamp:
@@ -455,6 +484,7 @@ def _format_json(item):
 
 class CmdExperimentsShow(CmdBase):
     def run(self):
+        onerror = Onerror()
         try:
             all_experiments = self.repo.experiments.show(
                 all_branches=self.args.all_branches,
@@ -463,8 +493,9 @@ class CmdExperimentsShow(CmdBase):
                 sha_only=self.args.sha,
                 num=self.args.num,
                 param_deps=self.args.param_deps,
+                onerror=onerror,
             )
-        except DvcException:
+        except Exception:  # pylint: disable=W0703
             logger.exception("failed to show experiments")
             return 1
 
@@ -484,6 +515,7 @@ class CmdExperimentsShow(CmdBase):
                 sort_order=self.args.sort_order,
                 precision=self.args.precision or DEFAULT_PRECISION,
                 pager=not self.args.no_pager,
+                error_collector=onerror,
             )
         return 0
 

@@ -6,7 +6,6 @@ import pytest
 from funcy import first
 
 from dvc import stage as stage_module
-from dvc.exceptions import MetricsError
 
 LIVE_SCRIPT = dedent(
     """
@@ -126,8 +125,7 @@ def test_live_provides_no_metrics(tmp_dir, dvc, live_stage):
     live_stage(summary=False, live="logs")
 
     assert not (tmp_dir / "logs.json").is_file()
-    with pytest.raises(MetricsError):
-        assert dvc.metrics.show() == {}
+    assert dvc.metrics.show() == {}
 
     assert (tmp_dir / "logs").is_dir()
     plots = dvc.plots.show()

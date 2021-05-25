@@ -7,10 +7,11 @@ from dvc.dependency.param import ParamsDependency
 from dvc.exceptions import DvcException
 from dvc.path_info import PathInfo
 from dvc.repo import locked
-from dvc.repo.collect import collect
+from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.scm.base import SCMError
 from dvc.stage import PipelineStage
-from dvc.utils.serialize import LOADERS, ParseError
+from dvc.utils import intercept_error
+from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
     from dvc.output import Output
@@ -29,15 +30,19 @@ def _is_params(dep: "Output"):
 
 
 def _collect_configs(
-    repo: "Repo", rev, targets=None
+    repo: "Repo", rev, targets=None, onerror=None
 ) -> Tuple[List["Output"], List["DvcPath"]]:
-    params, path_infos = collect(
-        repo,
-        targets=targets or [],
-        deps=True,
-        output_filter=_is_params,
-        rev=rev,
-    )
+
+    params: Outputs = []
+    path_infos: DvcPaths = []
+    with intercept_error(onerror, revision=rev):
+        params, path_infos = collect(
+            repo,
+            targets=targets or [],
+            deps=True,
+            output_filter=_is_params,
+            rev=rev,
+        )
     all_path_infos = path_infos + [p.path_info for p in params]
     if not targets:
         default_params = (
@@ -48,33 +53,38 @@ def _collect_configs(
     return params, path_infos
 
 
-def _read_path_info(fs, path_info, rev):
+def _read_path_info(fs, path_info):
     if not fs.exists(path_info):
         return None
 
     suffix = path_info.suffix.lower()
     loader = LOADERS[suffix]
-    try:
-        return loader(path_info, fs=fs)
-    except ParseError:
-        logger.debug(
-            "failed to read '%s' on '%s'", path_info, rev, exc_info=True
-        )
-        return None
+    return loader(path_info, fs=fs)
 
 
-def _read_params(repo, params, params_path_infos, rev, deps=False):
+def _read_params(
+    repo, params, params_path_infos, rev, deps=False, onerror=None
+):
     res = defaultdict(dict)
     path_infos = copy(params_path_infos)
 
     if deps:
         for param in params:
-            res[str(param.path_info)].update(param.read_params_d())
+
+            params_dict = {}
+            with intercept_error(onerror, revision=rev, path=param.path_info):
+                params_dict = param.read_params_d()
+
+            res[str(param.path_info)].update(params_dict)
     else:
         path_infos += [param.path_info for param in params]
 
     for path_info in path_infos:
-        from_path = _read_path_info(repo.fs, path_info, rev)
+
+        from_path = {}
+        with intercept_error(onerror, revision=rev, path=path_info):
+            from_path = _read_path_info(repo.fs, path_info)
+
         if from_path:
             res[str(path_info)] = from_path
 
@@ -96,13 +106,20 @@ def _collect_vars(repo, params):
 
 
 @locked
-def show(repo, revs=None, targets=None, deps=False):
+def show(repo, revs=None, targets=None, deps=False, onerror=None):
     res = {}
 
     for branch in repo.brancher(revs=revs):
-        params, params_path_infos = _collect_configs(repo, branch, targets)
-        params = _read_params(repo, params, params_path_infos, branch, deps)
-        vars_params = _collect_vars(repo, params)
+        params, params_path_infos = _collect_configs(
+            repo, branch, targets, onerror=onerror
+        )
+        params = _read_params(
+            repo, params, params_path_infos, branch, deps, onerror=onerror
+        )
+
+        vars_params = {}
+        with intercept_error(onerror, revision=branch):
+            vars_params = _collect_vars(repo, params)
 
         # NOTE: only those that are not added as a ParamDependency are included
         # so we don't need to recursively merge them yet.
@@ -110,9 +127,6 @@ def show(repo, revs=None, targets=None, deps=False):
 
         if params:
             res[branch] = params
-
-    if not res:
-        raise NoParamsError("no parameter configs files in this repository")
 
     # Hide workspace params if they are the same as in the active branch
     try:

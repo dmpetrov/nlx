@@ -5,7 +5,7 @@ from functools import partial
 
 from dvc.exceptions import DvcIgnoreInCollectedDirError
 from dvc.hash_info import HashInfo
-from dvc.ignore import DvcIgnore
+from dvc.ignore import DVCIGNORE_FILE
 from dvc.objects.file import HashFile
 from dvc.progress import Tqdm
 from dvc.utils import file_md5
@@ -126,7 +126,7 @@ def _build_tree(path_info, fs, name, odb, state, upload, **kwargs):
     for file_info, obj in _iter_objects(
         path_info, fs, name, odb, state, upload, **kwargs
     ):
-        if DvcIgnore.DVCIGNORE_FILE == file_info.name:
+        if DVCIGNORE_FILE == file_info.name:
             raise DvcIgnoreInCollectedDirError(file_info.parent)
 
         # NOTE: this is lossy transformation:

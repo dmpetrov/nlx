@@ -258,7 +258,7 @@ class RepoFileSystem(BaseFileSystem):  # pylint:disable=abstract-method
 
     def _walk(self, repo_walk, dvc_walk=None, dvcfiles=False):
         from dvc.dvcfile import is_valid_filename
-        from dvc.ignore import DvcIgnore
+        from dvc.ignore import DVCIGNORE_FILE
 
         assert repo_walk
         try:
@@ -281,9 +281,7 @@ class RepoFileSystem(BaseFileSystem):  # pylint:disable=abstract-method
             if dvcfiles:
                 return True
 
-            return not (
-                is_valid_filename(fname) or fname == DvcIgnore.DVCIGNORE_FILE
-            )
+            return not (is_valid_filename(fname) or fname == DVCIGNORE_FILE)
 
         # merge file lists
         files = set(filter(_func, dvc_fnames + repo_fnames))

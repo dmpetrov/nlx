@@ -173,6 +173,7 @@ class BadMetricError(DvcException):
         )
 
 
+# TODO remove?
 class MetricsError(DvcException):
     pass
 

@@ -1,9 +1,8 @@
-import contextlib
 import logging
 import os
 from typing import TYPE_CHECKING, List, Optional
 
-from dvc.exceptions import MetricDoesNotExistError, MetricsError
+from dvc.exceptions import MetricDoesNotExistError
 
 logger = logging.getLogger(__name__)
 
@@ -49,10 +48,7 @@ class Live:
 
         metrics_path = target + ".json"
 
-        metrics = None
-        with contextlib.suppress(MetricsError):
-            metrics = self.repo.metrics.show(targets=[metrics_path])
-
+        metrics = self.repo.metrics.show(targets=[metrics_path])
         plots = self.repo.plots.show(target, recursive=True, revs=revs)
 
         return metrics, plots

@@ -1,15 +1,6 @@
-from dvc.exceptions import MetricsError
 from dvc.repo.experiments.utils import fix_exp_head
 from dvc.utils.diff import diff as _diff
 from dvc.utils.diff import format_dict
-
-
-def _get_metrics(repo, *args, revs=None, **kwargs):
-    try:
-        metrics = repo.metrics.show(*args, **kwargs, revs=revs)
-        return metrics
-    except MetricsError:
-        return {}
 
 
 def diff(repo, *args, a_rev=None, b_rev=None, **kwargs):
@@ -22,7 +13,7 @@ def diff(repo, *args, a_rev=None, b_rev=None, **kwargs):
     a_rev = fix_exp_head(repo.scm, a_rev)
     b_rev = fix_exp_head(repo.scm, b_rev) or "workspace"
 
-    metrics = _get_metrics(repo, *args, **kwargs, revs=[a_rev, b_rev])
+    metrics = repo.metrics.show(*args, **kwargs, revs=[a_rev, b_rev])
     old = metrics.get(a_rev, {})
     new = metrics.get(b_rev, {})
 

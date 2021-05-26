@@ -4,7 +4,6 @@ from copy import copy
 from typing import TYPE_CHECKING, List, Tuple
 
 from dvc.dependency.param import ParamsDependency
-from dvc.exceptions import DvcException
 from dvc.path_info import PathInfo
 from dvc.repo import locked
 from dvc.repo.collect import DvcPaths, Outputs, collect
@@ -19,10 +18,6 @@ if TYPE_CHECKING:
     from dvc.types import DvcPath
 
 logger = logging.getLogger(__name__)
-
-
-class NoParamsError(DvcException):
-    pass
 
 
 def _is_params(dep: "Output"):

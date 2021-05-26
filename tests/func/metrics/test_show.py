@@ -1,13 +1,9 @@
+import logging
 import os
 
 import pytest
 
-from dvc.exceptions import (
-    MetricDoesNotExistError,
-    NoMetricsFoundError,
-    NoMetricsParsedError,
-    OverlappingOutputPathsError,
-)
+from dvc.exceptions import OverlappingOutputPathsError
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
 from dvc.utils.fs import remove
@@ -176,25 +172,19 @@ def test_show_no_repo(tmp_dir):
     dvc.metrics.show(targets=["metrics.json"])
 
 
-# TODO move to CMD?
-@pytest.mark.skip()
 def test_show_malformed_metric(tmp_dir, scm, dvc, caplog):
     tmp_dir.gen("metric.json", '{"m":1')
 
-    with pytest.raises(NoMetricsParsedError):
-        dvc.metrics.show(targets=["metric.json"])
+    dvc.metrics.show(targets=["metric.json"])
 
 
-@pytest.mark.skip()
-def test_metrics_show_no_target(tmp_dir, dvc):
-    with pytest.raises(MetricDoesNotExistError):
+def test_metrics_show_no_target(tmp_dir, dvc, caplog):
+    with caplog.at_level(logging.WARNING):
         dvc.metrics.show(targets=["metrics.json"])
 
-
-@pytest.mark.skip()
-def test_show_no_metrics_files(tmp_dir, dvc, caplog):
-    with pytest.raises(NoMetricsFoundError):
-        dvc.metrics.show()
+    assert (
+        "'metrics.json' was not found in current workspace." in caplog.messages
+    )
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])

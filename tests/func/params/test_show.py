@@ -1,14 +1,4 @@
-import pytest
-
 from dvc.repo import Repo
-from dvc.repo.params.show import NoParamsError
-
-
-# TODO cmd
-@pytest.mark.skip
-def test_show_empty(dvc):
-    with pytest.raises(NoParamsError):
-        dvc.params.show()
 
 
 def test_show(tmp_dir, dvc):

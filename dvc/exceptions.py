@@ -177,23 +177,7 @@ class MetricsError(DvcException):
     pass
 
 
-class NoMetricsParsedError(MetricsError):
-    def __init__(self, command):
-        super().__init__(
-            f"Could not parse {command} files. Use `-v` option to see more "
-            "details."
-        )
-
-
-class NoMetricsFoundError(MetricsError):
-    def __init__(self, command, run_options):
-        super().__init__(
-            f"No {command} files in this repository. "
-            f"Use `{run_options}` options for "
-            f"`dvc run` to mark stage outputs as {command}."
-        )
-
-
+# TODO what about this?
 class MetricDoesNotExistError(MetricsError):
     def __init__(self, targets: List[str]):
         if len(targets) == 1:

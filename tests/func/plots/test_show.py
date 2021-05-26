@@ -6,12 +6,7 @@ from collections import OrderedDict
 
 import pytest
 
-from dvc.exceptions import (
-    MetricDoesNotExistError,
-    NoMetricsFoundError,
-    NoMetricsParsedError,
-    OverlappingOutputPathsError,
-)
+from dvc.exceptions import OverlappingOutputPathsError
 from dvc.main import main
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
@@ -396,24 +391,16 @@ def test_plot_cache_missing(tmp_dir, scm, dvc, caplog, run_copy_metrics):
     ]
 
 
-# TODO cmd
-@pytest.mark.skip
 def test_throw_on_no_metric_at_all(tmp_dir, scm, dvc, caplog):
     tmp_dir.scm_gen("some_file", "content", commit="there is no metric")
     scm.tag("v1")
-
     tmp_dir.gen("some_file", "make repo dirty")
 
     caplog.clear()
-    with pytest.raises(MetricDoesNotExistError) as error, caplog.at_level(
-        logging.WARNING, "dvc"
-    ):
+    with caplog.at_level(logging.WARNING, "dvc"):
         dvc.plots.show(targets="plot.json", revs=["v1"])
 
-        # do not warn if none found
-        assert len(caplog.messages) == 0
-
-    assert str(error.value) == "'plot.json' does not exist."
+    assert "'plot.json' was not found at: 'v1'." in caplog.messages
 
 
 def test_custom_template(tmp_dir, scm, dvc, custom_template, run_copy_metrics):
@@ -701,25 +688,12 @@ def test_show_from_subdir(tmp_dir, dvc, capsys):
     assert (subdir / "plots.html").exists()
 
 
-# TODO
+# TODO what should happen here?
 @pytest.mark.skip
 def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
     tmp_dir.gen("plot.json", '[{"m":1]')
 
-    with pytest.raises(NoMetricsParsedError):
-        dvc.plots.show(targets=["plot.json"])
-
-
-@pytest.mark.skip
-def test_plots_show_no_target(tmp_dir, dvc):
-    with pytest.raises(MetricDoesNotExistError):
-        dvc.plots.show(targets=["plot.json"])
-
-
-@pytest.mark.skip
-def test_show_no_plots_files(tmp_dir, dvc, caplog):
-    with pytest.raises(NoMetricsFoundError):
-        dvc.plots.show()
+    dvc.plots.show(targets=["plot.json"])
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])

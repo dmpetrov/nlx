@@ -46,6 +46,7 @@ def _collect_paths(
             target_infos.extend(repo.dvcignore.walk_files(fs, path_info))
 
         if not fs.exists(path_info):
+            # TODO do we need this check?
             if not recursive:
                 if rev == "workspace" or rev == "":
                     logger.warning(

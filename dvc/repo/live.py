@@ -2,8 +2,6 @@ import logging
 import os
 from typing import TYPE_CHECKING, List, Optional
 
-from dvc.exceptions import MetricDoesNotExistError
-
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
@@ -42,9 +40,6 @@ class Live:
     def show(self, target: str, revs: List[str] = None):
         if revs:
             revs = ["workspace", *revs]
-
-        if not os.path.exists(target):
-            raise MetricDoesNotExistError([target])
 
         metrics_path = target + ".json"
 

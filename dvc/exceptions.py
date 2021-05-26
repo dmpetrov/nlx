@@ -1,5 +1,4 @@
 """Exceptions raised by the dvc."""
-from typing import List
 
 
 class DvcException(Exception):
@@ -171,21 +170,6 @@ class BadMetricError(DvcException):
                 paths=", ".join(f"'{path}'" for path in paths)
             )
         )
-
-
-# TODO remove?
-class MetricsError(DvcException):
-    pass
-
-
-# TODO what about this?
-class MetricDoesNotExistError(MetricsError):
-    def __init__(self, targets: List[str]):
-        if len(targets) == 1:
-            msg = "'{}' does not exist."
-        else:
-            msg = "'{}' do not exist."
-        super().__init__(msg.format(", ".join(targets)))
 
 
 class RecursiveAddingWhileUsingFilename(DvcException):

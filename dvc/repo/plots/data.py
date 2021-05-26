@@ -31,7 +31,7 @@ class PlotParsingError(ParseError):
         self.path = path
         self.revision = revision
 
-        super().__init__(path, f"revision: {revision}")
+        super().__init__(path, f"revision: '{revision}'")
 
 
 def plot_data(filename, revision, content):

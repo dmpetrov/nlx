@@ -41,6 +41,7 @@ def test_plots_diff(dvc, mocker):
     m = mocker.patch(
         "dvc.repo.plots.diff.diff", return_value={"datafile": "filledtemplate"}
     )
+    mo = mocker.patch("dvc.command.plots.Onerror")
 
     assert cmd.run() == 0
 
@@ -57,6 +58,7 @@ def test_plots_diff(dvc, mocker):
             "y_label": "y_title",
         },
         experiment=True,
+        onerror=mo(),
     )
 
 
@@ -82,11 +84,14 @@ def test_plots_show_vega(dvc, mocker):
         "dvc.repo.plots.Plots.show",
         return_value={"datafile": "filledtemplate"},
     )
+    mo = mocker.patch("dvc.command.plots.Onerror")
 
     assert cmd.run() == 0
 
     m.assert_called_once_with(
-        targets=["datafile"], props={"template": "template", "header": False}
+        targets=["datafile"],
+        props={"template": "template", "header": False},
+        onerror=mo(),
     )
 
 

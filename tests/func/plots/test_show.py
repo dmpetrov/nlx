@@ -463,16 +463,14 @@ def test_bad_template(tmp_dir, dvc, run_copy_metrics):
 
 
 def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics):
-    tmp_dir.gen("metric_t.txt", "some text")
-    run_copy_metrics(
-        "metric_t.txt",
-        "metric.txt",
-        plots_no_cache=["metric.txt"],
-        commit="add text metric",
-    )
+    tmp_dir.gen("metric.txt", "some text")
 
-    with pytest.raises(PlotMetricTypeError):
-        dvc.plots.show(targets=["metric.txt"])
+    onerror = Onerror()
+
+    dvc.plots.show(targets=["metric.txt"], onerror=onerror)
+    assert isinstance(
+        onerror.errors["workspace"]["metric.txt"], PlotMetricTypeError
+    )
 
 
 def test_plot_choose_columns(
@@ -688,12 +686,18 @@ def test_show_from_subdir(tmp_dir, dvc, capsys):
     assert (subdir / "plots.html").exists()
 
 
-# TODO what should happen here?
-@pytest.mark.skip
 def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
-    tmp_dir.gen("plot.json", '[{"m":1]')
+    tmp_dir.gen("plot.json", '[{"m":1}]')
+    scm.add(["plot.json"])
+    scm.commit("initial")
 
-    dvc.plots.show(targets=["plot.json"])
+    tmp_dir.gen("plot.json", '[{"m":1]')
+    result = dvc.plots.show(targets=["plot.json"], revs=["workspace", "HEAD"])
+    plot_content = json.loads(result["plot.json"])
+
+    assert plot_content["data"]["values"] == [
+        {"m": 1, "rev": "HEAD", "step": 0}
+    ]
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])

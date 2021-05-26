@@ -5,7 +5,7 @@ from dvc.command import completion
 from dvc.command.base import CmdBase, append_doc_link, fix_subparsers
 from dvc.exceptions import DvcException
 from dvc.ui import ui
-from dvc.utils import format_link
+from dvc.utils import Onerror, format_link
 
 logger = logging.getLogger(__name__)
 
@@ -13,6 +13,9 @@ logger = logging.getLogger(__name__)
 class CmdPlots(CmdBase):
     def _func(self, *args, **kwargs):
         raise NotImplementedError
+
+    def _log_errors(self, onerror: Onerror):
+        pass
 
     def _props(self):
         from dvc.schema import PLOT_PROPS
@@ -35,41 +38,62 @@ class CmdPlots(CmdBase):
                 return 1
 
         try:
-            plots = self._func(targets=self.args.targets, props=self._props())
+            onerror = Onerror()
+            plots = self._func(
+                targets=self.args.targets, props=self._props(), onerror=onerror
+            )
 
             if self.args.show_vega:
                 target = self.args.targets[0]
                 ui.write(plots[target])
                 return 0
 
+        except DvcException:
+            logger.exception("")
+            return 1
+
+        return_value = 0
+        if onerror.any_failed():
+            self._log_errors(onerror)
+            return_value = 1
+
+        if plots:
             rel: str = self.args.out or "plots.html"
             path = (Path.cwd() / rel).resolve()
             self.repo.plots.write_html(
                 path, plots=plots, html_template_path=self.args.html_template
             )
 
-        except DvcException:
-            logger.exception("")
-            return 1
+            assert (
+                path.is_absolute()
+            )  # as_uri throws ValueError if not absolute
+            url = path.as_uri()
+            ui.write(url)
+            if self.args.open:
+                import webbrowser
 
-        assert path.is_absolute()  # as_uri throws ValueError if not absolute
-        url = path.as_uri()
-        ui.write(url)
-        if self.args.open:
-            import webbrowser
+                opened = webbrowser.open(rel)
+                if not opened:
+                    ui.error_write(
+                        "Failed to open. Please try opening it manually."
+                    )
+                    return_value = 1
+        else:
+            from dvc.ui import ui
 
-            opened = webbrowser.open(rel)
-            if not opened:
-                ui.error_write(
-                    "Failed to open. Please try opening it manually."
-                )
-                return 1
-
-        return 0
+            ui.warn(
+                "No plots were loaded, visualization file will not be created."
+            )
+        return return_value
 
 
 class CmdPlotsShow(CmdPlots):
     UNINITIALIZED = True
+
+    def _log_errors(self, onerror: Onerror):
+        from dvc.ui import ui
+
+        ui.warn("DVC failed to load some plots files. ")
 
     def _func(self, *args, **kwargs):
         return self.repo.plots.show(*args, **kwargs)
@@ -77,6 +101,14 @@ class CmdPlotsShow(CmdPlots):
 
 class CmdPlotsDiff(CmdPlots):
     UNINITIALIZED = True
+
+    def _log_errors(self, onerror: Onerror):
+        from dvc.ui import ui
+
+        ui.warn(
+            "DVC failed to load some plots files for following revisions: "
+            f"'{', '.join(onerror.errors.keys())}'. "
+        )
 
     def _func(self, *args, **kwargs):
         return self.repo.plots.diff(

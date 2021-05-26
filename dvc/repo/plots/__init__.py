@@ -7,7 +7,7 @@ from funcy import cached_property, first, project
 from dvc.exceptions import DvcException
 from dvc.repo.collect import DvcPaths, Outputs
 from dvc.types import StrPath
-from dvc.utils import handle_error, intercept_error, relpath
+from dvc.utils import intercept_error, relpath
 
 if TYPE_CHECKING:
     from dvc.output import Output
@@ -98,8 +98,6 @@ class Plots:
     @staticmethod
     def render(data, revs=None, props=None, templates=None, onerror=None):
         """Renders plots"""
-        from dvc.repo.plots.data import PlotParsingError
-
         props = props or {}
 
         # Merge data by plot file and apply overriding props
@@ -107,12 +105,16 @@ class Plots:
 
         result = {}
         for datafile, desc in plots.items():
-            try:
-                result[datafile] = _render(
-                    datafile, desc["data"], desc["props"], templates
-                )
-            except PlotParsingError as e:
-                handle_error(e, onerror, revision=e.revision, path=e.path)
+            rendered = _render(
+                datafile,
+                desc["data"],
+                desc["props"],
+                templates,
+                onerror=onerror,
+            )
+            if rendered:
+                result[datafile] = rendered
+
         return result
 
     def show(
@@ -125,6 +127,7 @@ class Plots:
         onerror=None,
     ):
         data = self.collect(targets, revs, recursive, onerror=onerror)
+        # TODO move data loading to collect?
 
         if templates is None:
             templates = self.templates
@@ -289,7 +292,7 @@ def _prepare_plots(data, revs, props):
     return plots
 
 
-def _render(datafile, datas, props, templates):
+def _render(datafile, datas, props, templates, onerror=None):
     from .data import PlotData, plot_data
 
     # Copy it to not modify a passed value
@@ -310,18 +313,21 @@ def _render(datafile, datas, props, templates):
     # Parse all data, preprocess it and collect as a list of dicts
     data = []
     for rev, datablob in datas.items():
-        rev_data = plot_data(datafile, rev, datablob).to_datapoints(
-            fields=fields,
-            path=props.get("path"),
-            header=props.get("header", True),
-            append_index=props.get("append_index", False),
-        )
-        data.extend(rev_data)
+        with intercept_error(onerror, revision=rev, path=datafile):
+            rev_data = plot_data(datafile, rev, datablob).to_datapoints(
+                fields=fields,
+                path=props.get("path"),
+                header=props.get("header", True),
+                append_index=props.get("append_index", False),
+            )
+            data.extend(rev_data)
 
     # If y is not set then use last field not used yet
-    if not props.get("y") and template.has_anchor("y"):
-        fields = list(first(data))
-        skip = (PlotData.REVISION_FIELD, props.get("x"))
-        props["y"] = first(f for f in reversed(fields) if f not in skip)
+    if data:
+        if not props.get("y") and template.has_anchor("y"):
+            fields = list(first(data))
+            skip = (PlotData.REVISION_FIELD, props.get("x"))
+            props["y"] = first(f for f in reversed(fields) if f not in skip)
 
-    return template.render(data, props=props)
+        return template.render(data, props=props)
+    return None

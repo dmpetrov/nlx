@@ -523,3 +523,15 @@ class Onerror:
             return True
 
         return False
+
+    def any_failed(self):
+        return bool(self.errors)
+
+    def log_failed_revs(self):
+        from dvc.ui import ui
+
+        revs = "revision" if len(self.errors) == 1 else "revisions"
+        ui.warn(
+            f"Command failed for some file(s) in following {revs}: "
+            f"'{', '.join(self.errors.keys())}'"
+        )

@@ -5,6 +5,7 @@ from dvc.command import completion
 from dvc.command.base import CmdBase, append_doc_link, fix_subparsers
 from dvc.exceptions import BadMetricError, DvcException
 from dvc.ui import ui
+from dvc.utils import Onerror
 
 logger = logging.getLogger(__name__)
 
@@ -15,20 +16,33 @@ DEFAULT_PRECISION = 5
 class CmdMetricsBase(CmdBase):
     UNINITIALIZED = True
 
+    def _log_errors(self, onerror: Onerror):
+        if onerror.errors:
+            from dvc.ui import ui
+
+            ui.warn(
+                f"DVC failed to load some metrics for following revisions: "
+                f"'{', '.join(onerror.errors.keys())}'."
+            )
+
 
 class CmdMetricsShow(CmdMetricsBase):
     def run(self):
         try:
+            onerror = Onerror()
             metrics = self.repo.metrics.show(
                 self.args.targets,
                 all_branches=self.args.all_branches,
                 all_tags=self.args.all_tags,
                 all_commits=self.args.all_commits,
                 recursive=self.args.recursive,
+                onerror=onerror,
             )
         except DvcException:
             logger.exception("")
             return 1
+
+        self._log_errors(onerror)
 
         if self.args.show_json:
             import json
@@ -54,22 +68,28 @@ class CmdMetricsShow(CmdMetricsBase):
                 round_digits=True,
             )
 
+        if onerror.errors:
+            return 1
         return 0
 
 
 class CmdMetricsDiff(CmdMetricsBase):
     def run(self):
         try:
+            onerror = Onerror()
             diff = self.repo.metrics.diff(
                 a_rev=self.args.a_rev,
                 b_rev=self.args.b_rev,
                 targets=self.args.targets,
                 recursive=self.args.recursive,
                 all=self.args.all,
+                onerror=onerror,
             )
         except DvcException:
             logger.exception("failed to show metrics diff")
             return 1
+
+        self._log_errors(onerror)
 
         if self.args.show_json:
             import json
@@ -87,6 +107,8 @@ class CmdMetricsDiff(CmdMetricsBase):
                 round_digits=True,
             )
 
+        if onerror.errors:
+            return 1
         return 0
 
 

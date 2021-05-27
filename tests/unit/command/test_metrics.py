@@ -1,10 +1,20 @@
 import json
 
+import pytest
+
 from dvc.cli import parse_args
 from dvc.command.metrics import CmdMetricsDiff, CmdMetricsShow
 
 
-def test_metrics_diff(dvc, mocker, capsys):
+@pytest.fixture
+def onerror(mocker):
+    mock = mocker.patch("dvc.command.metrics.Onerror")()
+    mock.errors = {}
+
+    yield mock
+
+
+def test_metrics_diff(dvc, mocker, capsys, onerror):
     cli_args = parse_args(
         [
             "metrics",
@@ -39,6 +49,7 @@ def test_metrics_diff(dvc, mocker, capsys):
         b_rev="HEAD~1",
         recursive=True,
         all=True,
+        onerror=onerror,
     )
     show_diff_mock.assert_called_once_with(
         diff,
@@ -50,7 +61,7 @@ def test_metrics_diff(dvc, mocker, capsys):
     )
 
 
-def test_metrics_diff_json(dvc, mocker, capsys):
+def test_metrics_diff_json(dvc, mocker, capsys, onerror):
     cli_args = parse_args(
         [
             "metrics",
@@ -87,12 +98,13 @@ def test_metrics_diff_json(dvc, mocker, capsys):
         b_rev="HEAD~1",
         recursive=True,
         all=True,
+        onerror=onerror,
     )
     show_diff_mock.assert_not_called()
     assert json.dumps(diff) in out
 
 
-def test_metrics_show(dvc, mocker):
+def test_metrics_show(dvc, mocker, onerror):
     cli_args = parse_args(
         [
             "metrics",
@@ -122,6 +134,7 @@ def test_metrics_show(dvc, mocker):
         all_tags=True,
         all_branches=True,
         all_commits=True,
+        onerror=onerror,
     )
     m2.assert_called_once_with(
         {},
@@ -134,7 +147,7 @@ def test_metrics_show(dvc, mocker):
     )
 
 
-def test_metrics_show_json(dvc, mocker, capsys):
+def test_metrics_show_json(dvc, mocker, capsys, onerror):
     cli_args = parse_args(
         [
             "metrics",
@@ -169,6 +182,7 @@ def test_metrics_show_json(dvc, mocker, capsys):
         all_tags=True,
         all_branches=True,
         all_commits=True,
+        onerror=onerror,
     )
     show_metrics_mock.assert_not_called()
     assert json.dumps(d) in out

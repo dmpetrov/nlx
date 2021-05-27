@@ -93,7 +93,7 @@ class CmdPlotsShow(CmdPlots):
     def _log_errors(self, onerror: Onerror):
         from dvc.ui import ui
 
-        ui.warn("DVC failed to load some plots files. ")
+        ui.warn("DVC failed to load some plots files.")
 
     def _func(self, *args, **kwargs):
         return self.repo.plots.show(*args, **kwargs)

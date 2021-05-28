@@ -6,6 +6,7 @@ import pytest
 from dvc.exceptions import OverlappingOutputPathsError
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
+from dvc.utils import Onerror
 from dvc.utils.fs import remove
 from dvc.utils.serialize import dump_yaml, modify_yaml
 
@@ -175,12 +176,15 @@ def test_show_no_repo(tmp_dir):
 def test_show_malformed_metric(tmp_dir, scm, dvc, caplog):
     tmp_dir.gen("metric.json", '{"m":1')
 
-    dvc.metrics.show(targets=["metric.json"])
+    onerror = Onerror()
+    assert dvc.metrics.show(targets=["metric.json"], onerror=onerror) == {}
+
+    assert isinstance(onerror.errors[""]["metric.json"], Exception)
 
 
 def test_metrics_show_no_target(tmp_dir, dvc, caplog):
     with caplog.at_level(logging.WARNING):
-        dvc.metrics.show(targets=["metrics.json"])
+        assert dvc.metrics.show(targets=["metrics.json"]) == {}
 
     assert (
         "'metrics.json' was not found in current workspace." in caplog.messages
@@ -218,8 +222,6 @@ def test_metrics_show_overlap(
 
     dvc._reset()
 
-    def onerror(exc, **kwargs):
-        raise exc
-
-    with pytest.raises(OverlappingOutputPathsError):
-        dvc.metrics.show(onerror=onerror)
+    onerror = Onerror()
+    assert dvc.metrics.show(onerror=onerror) == {}
+    assert isinstance(onerror.errors[""], OverlappingOutputPathsError)

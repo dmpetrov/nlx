@@ -456,6 +456,4 @@ def test_error_onerror(tmp_dir, scm, dvc, exp_stage, caplog):
 
     assert isinstance(onerror.errors["workspace"], YAMLFileCorruptedError)
 
-    caplog.clear()
-
     assert main(["experiments", "show", "--no-pager"]) == 0

@@ -501,16 +501,11 @@ class Onerror:
     def __init__(self):
         self.errors = {}
 
-    def __call__(self, exception: Exception, revision=None, path=None):
-        path_d = None
-        if path:
-            path_d = {path: exception}
+    def __call__(self, exception: Exception, revision, path=None):
+        path_d = {path: exception} if path is not None else {}
+        rev_d = {revision: path_d or exception}
 
-        rev_d = None
-        if revision:
-            rev_d = {revision: path_d or exception}
-
-        self.errors.update(rev_d or {})
+        self.errors.update(rev_d)
 
     def rev_failed(self, revision):
         return isinstance(self.errors.get(revision, None), Exception)

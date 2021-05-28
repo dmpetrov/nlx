@@ -14,6 +14,7 @@ from dvc.repo.plots.data import (
     JSONPlotData,
     PlotData,
     PlotMetricTypeError,
+    PlotParsingError,
     YAMLPlotData,
 )
 from dvc.repo.plots.template import (
@@ -391,18 +392,6 @@ def test_plot_cache_missing(tmp_dir, scm, dvc, caplog, run_copy_metrics):
     ]
 
 
-def test_throw_on_no_metric_at_all(tmp_dir, scm, dvc, caplog):
-    tmp_dir.scm_gen("some_file", "content", commit="there is no metric")
-    scm.tag("v1")
-    tmp_dir.gen("some_file", "make repo dirty")
-
-    caplog.clear()
-    with caplog.at_level(logging.WARNING, "dvc"):
-        dvc.plots.show(targets="plot.json", revs=["v1"])
-
-    assert "'plot.json' was not found at: 'v1'." in caplog.messages
-
-
 def test_custom_template(tmp_dir, scm, dvc, custom_template, run_copy_metrics):
     metric = [{"a": 1, "b": 2}, {"a": 2, "b": 3}]
     _write_json(tmp_dir, metric, "metric_t.json")
@@ -466,7 +455,6 @@ def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics):
     tmp_dir.gen("metric.txt", "some text")
 
     onerror = Onerror()
-
     dvc.plots.show(targets=["metric.txt"], onerror=onerror)
     assert isinstance(
         onerror.errors["workspace"]["metric.txt"], PlotMetricTypeError
@@ -692,12 +680,23 @@ def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
     scm.commit("initial")
 
     tmp_dir.gen("plot.json", '[{"m":1]')
-    result = dvc.plots.show(targets=["plot.json"], revs=["workspace", "HEAD"])
+
+    onerror = Onerror()
+    result = dvc.plots.show(
+        targets=["plot.json"], revs=["workspace", "HEAD"], onerror=onerror
+    )
     plot_content = json.loads(result["plot.json"])
 
     assert plot_content["data"]["values"] == [
         {"m": 1, "rev": "HEAD", "step": 0}
     ]
+    assert isinstance(
+        onerror.errors["workspace"]["plot.json"], PlotParsingError
+    )
+
+
+def test_plots_show_non_existing(tmp_dir, dvc):
+    assert dvc.plots.show(targets=["plot.json"]) == {}
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])
@@ -729,11 +728,9 @@ def test_plots_show_overlap(tmp_dir, dvc, run_copy_metrics, clear_before_run):
 
     dvc._reset()
 
-    def onerror(exc, **kwargs):
-        raise exc
-
-    with pytest.raises(OverlappingOutputPathsError):
-        dvc.plots.show(onerror=onerror)
+    onerror = Onerror()
+    assert dvc.plots.show(onerror=onerror) == {}
+    assert isinstance(onerror.errors["workspace"], OverlappingOutputPathsError)
 
 
 def test_dir_plots(tmp_dir, dvc, run_copy_metrics):
@@ -802,7 +799,6 @@ def test_show_dir_plots(tmp_dir, dvc, run_copy_metrics):
     assert dvc.plots.show() == {}
 
 
-# TODO collect and check error?
 def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics):
     with open("file", "wb") as fobj:
         fobj.write(b"\xc1")

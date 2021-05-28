@@ -127,7 +127,6 @@ class Plots:
         onerror=None,
     ):
         data = self.collect(targets, revs, recursive, onerror=onerror)
-        # TODO move data loading to collect?
 
         if templates is None:
             templates = self.templates

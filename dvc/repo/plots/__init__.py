@@ -96,7 +96,9 @@ class Plots:
         return data
 
     @staticmethod
-    def render(data, revs=None, props=None, templates=None, onerror=None):
+    def render(
+        data, revs=None, props=None, templates=None, onerror: Callable = None
+    ):
         """Renders plots"""
         props = props or {}
 
@@ -291,7 +293,7 @@ def _prepare_plots(data, revs, props):
     return plots
 
 
-def _render(datafile, datas, props, templates, onerror=None):
+def _render(datafile, datas, props, templates, onerror: Callable = None):
     from .data import PlotData, plot_data
 
     # Copy it to not modify a passed value

@@ -10,7 +10,7 @@ import stat
 import sys
 import time
 from contextlib import contextmanager
-from typing import Optional, Tuple
+from typing import Callable, Optional, Tuple
 
 import colorama
 
@@ -484,34 +484,30 @@ def glob_targets(targets, glob=True, recursive=True):
 
 
 @contextmanager
-def intercept_error(onerror=None, **kwargs):
+def intercept_error(onerror: Callable = None, **kwargs):
     try:
         yield
     except Exception as e:  # pylint: disable=W0703
-        handle_error(e, onerror, **kwargs)
-
-
-def handle_error(exc, onerror=None, **kwargs):
-    logger.debug("", exc_info=True)
-    if onerror is not None:
-        onerror(exc, **kwargs)
+        logger.debug("", exc_info=True)
+        if onerror is not None:
+            onerror(e, **kwargs)
 
 
 class Onerror:
     def __init__(self):
         self.errors = {}
 
-    def __call__(self, exception: Exception, revision, path=None):
+    def __call__(self, exception: Exception, revision: str, path: str = None):
         path_d = {path: exception} if path is not None else {}
         rev_d = {revision: path_d or exception}
 
         self.errors.update(rev_d)
 
-    def rev_failed(self, revision):
+    def _rev_failed(self, revision: str):
         return isinstance(self.errors.get(revision, None), Exception)
 
-    def path_failed(self, revision, path):
-        if self.rev_failed(revision):
+    def path_failed(self, revision: str, path: str):
+        if self._rev_failed(revision):
             return True
 
         if self.errors.get(revision, {}).get(path, None):

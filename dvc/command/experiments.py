@@ -98,14 +98,14 @@ def _update_names(names, items):
             names[name].update({key: None for key in item})
 
 
-def _fill_empty_values(error_collector, rev, names):
+def _fill_empty_values(
+    rev: str, names: Dict[str, Dict], onerror: Optional[Onerror] = None
+):
     fill_values = deepcopy(names)
 
     fill_val = FILL_VALUE
     for file, val_dict in names.items():
-        if error_collector.path_failed(
-            rev, file
-        ) or error_collector.rev_failed(rev):
+        if onerror and onerror.path_failed(rev, file):
             fill_val = FILL_VALUE_ERRORED
         for val_name, _ in val_dict.items():
             fill_values[file][val_name] = fill_val
@@ -155,7 +155,7 @@ def _collect_rows(
     precision=DEFAULT_PRECISION,
     sort_by=None,
     sort_order=None,
-    error_collector=None,
+    onerror: Optional[Onerror] = None,
 ):
     from dvc.scm.git import Git
 
@@ -224,10 +224,10 @@ def _collect_rows(
             executor,
         ]
         metric_names_filled = _fill_empty_values(
-            error_collector, error_rev, metric_names
+            error_rev, metric_names, onerror=onerror
         )
         param_names_filled = _fill_empty_values(
-            error_collector, error_rev, param_names
+            error_rev, param_names, onerror=onerror
         )
         _extend_row(
             row,
@@ -333,7 +333,7 @@ def experiments_table(
     sort_by=None,
     sort_order=None,
     precision=DEFAULT_PRECISION,
-    error_collector: Onerror = None,
+    onerror: Optional[Onerror] = None,
 ) -> "TabularData":
     from funcy import lconcat
 
@@ -360,7 +360,7 @@ def experiments_table(
             sort_by=sort_by,
             sort_order=sort_order,
             precision=precision,
-            error_collector=error_collector,
+            onerror=onerror,
         )
         td.extend(rows)
 
@@ -419,7 +419,7 @@ def show_experiments(
         kwargs.get("sort_by"),
         kwargs.get("sort_order"),
         kwargs.get("precision"),
-        kwargs.get("error_collector"),
+        kwargs.get("onerror"),
     )
 
     if no_timestamp:
@@ -495,7 +495,7 @@ class CmdExperimentsShow(CmdBase):
                 param_deps=self.args.param_deps,
                 onerror=onerror,
             )
-        except Exception:  # pylint: disable=W0703
+        except DvcException:
             logger.exception("failed to show experiments")
             return 1
 
@@ -515,7 +515,7 @@ class CmdExperimentsShow(CmdBase):
                 sort_order=self.args.sort_order,
                 precision=self.args.precision or DEFAULT_PRECISION,
                 pager=not self.args.no_pager,
-                error_collector=onerror,
+                onerror=onerror,
             )
         return 0
 

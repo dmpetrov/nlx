@@ -437,7 +437,7 @@ def test_show_running_checkpoint(
     assert not results["workspace"]["baseline"]["running"]
 
 
-def test_error_onerror(tmp_dir, scm, dvc, exp_stage, caplog):
+def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog):
     baseline_rev = scm.get_rev()
     exp1 = dvc.experiments.run(exp_stage.addressing, params=["foo=2"])
     exp2 = dvc.experiments.run(exp_stage.addressing, params=["foo=3"])

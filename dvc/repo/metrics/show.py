@@ -1,11 +1,10 @@
 import logging
-from typing import List
+from typing import Callable, List
 
 from dvc.fs.repo import RepoFileSystem
 from dvc.output import Output
-from dvc.path_info import PathInfo
 from dvc.repo import locked
-from dvc.repo.collect import collect
+from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.repo.live import summary_path_info
 from dvc.scm.base import SCMError
 from dvc.utils import intercept_error
@@ -18,7 +17,7 @@ def _is_metric(out: Output) -> bool:
     return bool(out.metric) or bool(out.live)
 
 
-def _to_path_infos(metrics: List[Output]) -> List[PathInfo]:
+def _to_path_infos(metrics: List[Output]) -> DvcPaths:
     result = []
     for out in metrics:
         if out.metric:
@@ -30,9 +29,12 @@ def _to_path_infos(metrics: List[Output]) -> List[PathInfo]:
     return result
 
 
-def _collect_metrics(repo, targets, revision, recursive, onerror=None):
+def _collect_metrics(
+    repo, targets, revision, recursive, onerror: Callable = None
+):
 
-    metrics, path_infos = ([], [])
+    metrics: Outputs = []
+    path_infos: DvcPaths = []
 
     with intercept_error(onerror, revision=revision):
         metrics, path_infos = collect(

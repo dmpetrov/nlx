@@ -1,7 +1,7 @@
 import logging
 from collections import defaultdict
 from copy import copy
-from typing import TYPE_CHECKING, List, Tuple
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
 from dvc.dependency.param import ParamsDependency
 from dvc.path_info import PathInfo
@@ -25,7 +25,7 @@ def _is_params(dep: "Output"):
 
 
 def _collect_configs(
-    repo: "Repo", rev, targets=None, onerror=None
+    repo: "Repo", rev, targets=None, onerror: Callable = None
 ) -> Tuple[List["Output"], List["DvcPath"]]:
 
     params: Outputs = []
@@ -58,9 +58,14 @@ def _read_path_info(fs, path_info):
 
 
 def _read_params(
-    repo, params, params_path_infos, rev, deps=False, onerror=None
+    repo,
+    params,
+    params_path_infos,
+    rev,
+    deps=False,
+    onerror: Optional[Callable] = None,
 ):
-    res = defaultdict(dict)
+    res: Dict[str, Dict] = defaultdict(dict)
     path_infos = copy(params_path_infos)
 
     if deps:
@@ -86,8 +91,8 @@ def _read_params(
     return res
 
 
-def _collect_vars(repo, params):
-    vars_params = defaultdict(dict)
+def _collect_vars(repo, params) -> Dict:
+    vars_params: Dict[str, Dict] = defaultdict(dict)
     for stage in repo.stages:
         if isinstance(stage, PipelineStage) and stage.tracked_vars:
             for file, vars_ in stage.tracked_vars.items():
@@ -101,27 +106,32 @@ def _collect_vars(repo, params):
 
 
 @locked
-def show(repo, revs=None, targets=None, deps=False, onerror=None):
+def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
     res = {}
 
     for branch in repo.brancher(revs=revs):
-        params, params_path_infos = _collect_configs(
-            repo, branch, targets, onerror=onerror
-        )
-        params = _read_params(
-            repo, params, params_path_infos, branch, deps, onerror=onerror
-        )
-
-        vars_params = {}
         with intercept_error(onerror, revision=branch):
+            param_outs, params_path_infos = _collect_configs(
+                repo, branch, targets, onerror=onerror
+            )
+            params = _read_params(
+                repo,
+                param_outs,
+                params_path_infos,
+                branch,
+                deps,
+                onerror=onerror,
+            )
+
+            vars_params = {}
             vars_params = _collect_vars(repo, params)
 
-        # NOTE: only those that are not added as a ParamDependency are included
-        # so we don't need to recursively merge them yet.
-        params.update(vars_params)
+            # NOTE: only those that are not added as a ParamDependency are
+            # included so we don't need to recursively merge them yet.
+            params.update(vars_params)
 
-        if params:
-            res[branch] = params
+            if params:
+                res[branch] = params
 
     # Hide workspace params if they are the same as in the active branch
     try:

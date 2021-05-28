@@ -23,7 +23,7 @@ def _collect_experiment_commit(
     sha_only=True,
     param_deps=False,
     running=None,
-    onerror: Callable = None,
+    onerror: Optional[Callable] = None,
 ):
     res: Dict[str, Optional[Any]] = defaultdict(dict)
     for rev in repo.brancher(revs=[exp_rev]):
@@ -79,7 +79,7 @@ def _collect_experiment_commit(
 
 
 def _collect_experiment_branch(
-    res, repo, branch, baseline, onerror: Callable, **kwargs
+    res, repo, branch, baseline, onerror: Optional[Callable] = None, **kwargs
 ):
     exp_rev = repo.scm.resolve_rev(branch)
     prev = None
@@ -119,9 +119,9 @@ def show(
     sha_only=False,
     num=1,
     param_deps=False,
-    onerror=None,
+    onerror: Optional[Callable] = None,
 ):
-    res = defaultdict(OrderedDict)
+    res: Dict[str, Dict] = defaultdict(OrderedDict)
 
     if num < 1:
         raise InvalidArgumentError(f"Invalid number of commits '{num}'")

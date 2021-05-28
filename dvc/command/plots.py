@@ -59,7 +59,7 @@ class CmdPlots(CmdBase):
 
         if plots:
             rel: str = self.args.out or "plots.html"
-            path = (Path.cwd() / rel).resolve()
+            path: Path = (Path.cwd() / rel).resolve()
             self.repo.plots.write_html(
                 path, plots=plots, html_template_path=self.args.html_template
             )

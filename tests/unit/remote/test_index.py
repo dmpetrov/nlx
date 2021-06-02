@@ -8,7 +8,7 @@ from dvc.remote.index import RemoteIndex
 
 @pytest.fixture(scope="function")
 def index(dvc):
-    idx = RemoteIndex(dvc.tmp_dir, "foo")
+    idx = RemoteIndex(dvc.index_tmp_dir, "foo")
     idx.load()
     yield idx
     idx.dump()

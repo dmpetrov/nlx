@@ -122,6 +122,33 @@ class Repo:
 
         return root_dir, dvc_dir, tmp_dir
 
+    def _get_subsystem_tmp_dir(
+        self, subsystem, root_dir, tmp_dir, config: dict
+    ):
+        # NOTE: by default, store remote indexes and state's `links` and
+        # `md5s` caches in the repository itself to avoid any possible state
+        # corruption in 'shared cache dir' scenario, but allow user to
+        # override this through config when, say, the repository is located
+        # on a mounted volume — see
+        # https://github.com/iterative/dvc/issues/4420
+        base_state_dir = config.get(subsystem, {}).get("dir", None)
+        if not base_state_dir:
+            return tmp_dir
+
+        import hashlib
+
+        from dvc.utils.fs import makedirs
+
+        root_dir_hash = hashlib.sha224(root_dir.encode("utf-8")).hexdigest()
+        state_tmp_dir = os.path.join(
+            base_state_dir,
+            self.DVC_DIR,
+            f"{os.path.basename(root_dir)}-{root_dir_hash[0:7]}",
+        )
+
+        makedirs(state_tmp_dir, exist_ok=True)
+        return state_tmp_dir
+
     def __init__(
         self,
         root_dir=None,
@@ -184,10 +211,10 @@ class Repo:
                 friendly=True,
             )
 
-            # NOTE: storing state and link_state in the repository itself to
-            # avoid any possible state corruption in 'shared cache dir'
-            # scenario.
-            self.state = State(self.root_dir, self.tmp_dir, self.dvcignore)
+            state_tmp_dir = self._get_subsystem_tmp_dir(
+                "state", self.root_dir, self.tmp_dir, self.config
+            )
+            self.state = State(self.root_dir, state_tmp_dir, self.dvcignore)
             self.odb = ODBManager(self)
 
             self.stage_cache = StageCache(self)
@@ -490,6 +517,12 @@ class Repo:
         from dvc.fs.repo import RepoFileSystem
 
         return RepoFileSystem(self, subrepos=self.subrepos, **self._fs_conf)
+
+    @cached_property
+    def index_tmp_dir(self):
+        return self._get_subsystem_tmp_dir(
+            "index", self.root_dir, self.tmp_dir, self.config
+        )
 
     @contextmanager
     def open_by_relpath(self, path, remote=None, mode="r", encoding=None):

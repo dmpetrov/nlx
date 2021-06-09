@@ -8,7 +8,7 @@ from dvc.path_info import PathInfo
 from dvc.repo import Repo
 from dvc.utils import Onerror
 from dvc.utils.fs import remove
-from dvc.utils.serialize import dump_yaml, modify_yaml
+from dvc.utils.serialize import YAMLFileCorruptedError, dump_yaml, modify_yaml
 
 
 def test_show_simple(tmp_dir, dvc, run_copy_metrics):
@@ -179,7 +179,9 @@ def test_show_malformed_metric(tmp_dir, scm, dvc, caplog):
     onerror = Onerror()
     assert dvc.metrics.show(targets=["metric.json"], onerror=onerror) == {}
 
-    assert isinstance(onerror.errors[""]["metric.json"], Exception)
+    assert isinstance(
+        onerror.errors[""]["metric.json"], YAMLFileCorruptedError
+    )
 
 
 def test_metrics_show_no_target(tmp_dir, dvc, caplog):

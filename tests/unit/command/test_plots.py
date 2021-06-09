@@ -7,7 +7,15 @@ from dvc.cli import parse_args
 from dvc.command.plots import CmdPlotsDiff, CmdPlotsShow
 
 
-def test_plots_diff(dvc, mocker):
+@pytest.fixture
+def onerror(mocker):
+    mock = mocker.patch("dvc.command.plots.Onerror")()
+    mock.errors = {}
+
+    yield mock
+
+
+def test_plots_diff(dvc, mocker, onerror):
     cli_args = parse_args(
         [
             "plots",
@@ -41,7 +49,6 @@ def test_plots_diff(dvc, mocker):
     m = mocker.patch(
         "dvc.repo.plots.diff.diff", return_value={"datafile": "filledtemplate"}
     )
-    mo = mocker.patch("dvc.command.plots.Onerror")
 
     assert cmd.run() == 0
 
@@ -58,11 +65,11 @@ def test_plots_diff(dvc, mocker):
             "y_label": "y_title",
         },
         experiment=True,
-        onerror=mo(),
+        onerror=onerror,
     )
 
 
-def test_plots_show_vega(dvc, mocker):
+def test_plots_show_vega(dvc, mocker, onerror):
     cli_args = parse_args(
         [
             "plots",
@@ -84,14 +91,13 @@ def test_plots_show_vega(dvc, mocker):
         "dvc.repo.plots.Plots.show",
         return_value={"datafile": "filledtemplate"},
     )
-    mo = mocker.patch("dvc.command.plots.Onerror")
 
     assert cmd.run() == 0
 
     m.assert_called_once_with(
         targets=["datafile"],
         props={"template": "template", "header": False},
-        onerror=mo(),
+        onerror=onerror,
     )
 
 

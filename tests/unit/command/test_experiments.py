@@ -78,8 +78,6 @@ def test_experiments_show(dvc, scm, mocker):
 
     m = mocker.patch("dvc.repo.experiments.show.show", return_value={})
     mo = mocker.patch("dvc.command.experiments.Onerror")
-    onerror_mock = mo()
-
     assert cmd.run() == 0
 
     m.assert_called_once_with(
@@ -90,7 +88,7 @@ def test_experiments_show(dvc, scm, mocker):
         sha_only=True,
         num=1,
         param_deps=True,
-        onerror=onerror_mock,
+        onerror=mo(),
     )
 
 

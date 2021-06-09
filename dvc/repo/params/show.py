@@ -123,7 +123,6 @@ def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
                 onerror=onerror,
             )
 
-            vars_params = {}
             vars_params = _collect_vars(repo, params)
 
             # NOTE: only those that are not added as a ParamDependency are

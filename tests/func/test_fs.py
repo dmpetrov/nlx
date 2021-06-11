@@ -324,7 +324,7 @@ def test_fs_ls(dvc, cloud):
         pytest.lazy_fixture("gdrive"),
     ],
 )
-def test_fs_find_recursive(dvc, cloud):
+def test_fs_find(dvc, cloud):
     cloud.gen({"data": {"foo": "foo", "bar": {"baz": "baz"}, "quux": "quux"}})
     cls, config, path_info = get_cloud_fs(dvc, **cloud.config)
     fs = cls(**config)

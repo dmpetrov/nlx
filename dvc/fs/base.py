@@ -185,7 +185,7 @@ class BaseFileSystem:
     def remove(self, path_info):
         raise RemoteActionNotImplemented("remove", self.scheme)
 
-    def makedirs(self, path_info):
+    def makedirs(self, path_info, **kwargs):
         """Optional: Implement only if the remote needs to create
         directories before copying/linking/moving data
         """

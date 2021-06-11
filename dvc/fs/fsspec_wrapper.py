@@ -25,7 +25,7 @@ class FSSpecWrapper(BaseFileSystem):
     @lru_cache(512)
     def _with_bucket(self, path):
         if isinstance(path, self.PATH_CLS):
-            return f"{path.bucket}/{path.path}"
+            return path.path
         return path
 
     def _strip_bucket(self, entry):
@@ -86,6 +86,7 @@ class FSSpecWrapper(BaseFileSystem):
         return self.fs.open(self._with_bucket(path_info), mode=mode)
 
     def copy(self, from_info, to_info):
+        self.makedirs(to_info.parent)
         self.fs.copy(self._with_bucket(from_info), self._with_bucket(to_info))
 
     def exists(self, path_info) -> bool:
@@ -117,7 +118,12 @@ class FSSpecWrapper(BaseFileSystem):
         info["name"] = self._strip_bucket(info["name"])
         return info
 
+    # pylint: disable=arguments-differ
+    def makedirs(self, path_info, exist_ok=True, **kwargs):
+        self.fs.makedirs(self._with_bucket(path_info), exist_ok=exist_ok)
+
     def _upload_fobj(self, fobj, to_info):
+        self.makedirs(to_info.parent)
         with self.open(to_info, "wb") as fdest:
             shutil.copyfileobj(fobj, fdest, length=fdest.blocksize)
 
@@ -128,7 +134,7 @@ class FSSpecWrapper(BaseFileSystem):
         with open(from_file, "rb") as fobj:
             self.upload_fobj(
                 fobj,
-                self._with_bucket(to_info),
+                to_info,
                 desc=name,
                 total=total,
                 no_progress_bar=no_progress_bar,
@@ -155,6 +161,20 @@ class FSSpecWrapper(BaseFileSystem):
 
 # pylint: disable=abstract-method
 class ObjectFSWrapper(FSSpecWrapper):
+    @lru_cache(512)
+    def _with_bucket(self, path):
+        if isinstance(path, self.PATH_CLS):
+            return f"{path.bucket}/{path.path}"
+        return path
+
+    def makedirs(self, path_info, exist_ok=True, **kwargs):
+        # For object storages make this method a no-op. The original
+        # fs.makedirs() method will only check if the bucket exists
+        # and create if it doesn't though we don't want to support
+        # that behavior, and the check will cost some time so we'll
+        # simply ignore all mkdir()/makedirs() calls.
+        return None
+
     def _isdir(self, path_info):
         # Directory in object storages are interpreted differently
         # among different fsspec providers, so this logic is a temporary

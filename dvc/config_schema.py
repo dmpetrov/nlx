@@ -95,6 +95,7 @@ HTTP_COMMON = {
     "ask_password": Bool,
     "ssl_verify": Any(Bool, str),
     "method": str,
+    "chunked_upload": Bool,
 }
 WEBDAV_COMMON = {
     "user": str,

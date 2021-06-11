@@ -1,7 +1,9 @@
 import os
+import re
 
 from dvc.hash_info import HashInfo
 from dvc.path_info import PathInfo
+from dvc.repo import Repo
 from dvc.state import State
 from dvc.utils import file_md5
 
@@ -76,4 +78,18 @@ def test_get_unused_links(tmp_dir, dvc):
             )
         )
         == {"bar"}
+    )
+
+
+def test_state_dir_config(dvc):
+    assert dvc.state.tmp_dir == dvc.tmp_dir
+
+    index_dir = "/tmp"
+    repo = Repo(config={"state": {"dir": index_dir}})
+    assert os.path.dirname(repo.state.tmp_dir) == os.path.join(
+        index_dir, ".dvc"
+    )
+    assert re.match(
+        r"^test_state_dir_config0-([0-9a-f]+)$",
+        os.path.basename(repo.state.tmp_dir),
     )

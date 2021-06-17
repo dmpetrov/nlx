@@ -33,7 +33,7 @@ def ls(url, path=None, rev=None, recursive=None, dvc_only=False):
         if path:
             path_info /= path
 
-        fs = repo.repo_fs
+        fs = repo.dvcfs if dvc_only else repo.repo_fs
 
         if path and not fs.exists(path_info):
             raise PathMissingError(path, repo, dvc_only=dvc_only)

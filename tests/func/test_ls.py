@@ -138,8 +138,19 @@ def test_ls_repo_with_path_dir_dvc_only_empty(tmp_dir, dvc, scm):
     tmp_dir.scm_gen(FS_STRUCTURE, commit="init")
     tmp_dir.dvc_gen(DVC_STRUCTURE, commit="dvc")
     tmp_dir.scm_gen({"folder/.keep": "content"}, commit="add .keep")
+    tmp_dir.scm_gen({"empty_scm_folder/": {}}, commit="add scm empty")
+    tmp_dir.dvc_gen({"empty_dvc_folder": {}}, commit="empty dvc folder")
 
-    files = Repo.ls(os.fspath(tmp_dir), path="folder", dvc_only=True)
+    with pytest.raises(PathMissingError):
+        Repo.ls(os.fspath(tmp_dir), path="not_exist_folder")
+
+    files = Repo.ls(os.fspath(tmp_dir), path="empty_scm_folder")
+    assert files == []
+
+    with pytest.raises(PathMissingError):
+        Repo.ls(os.fspath(tmp_dir), path="folder", dvc_only=True)
+
+    files = Repo.ls(os.fspath(tmp_dir), path="empty_dvc_folder", dvc_only=True)
     assert files == []
 
 

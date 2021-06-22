@@ -79,8 +79,6 @@ class CmdPlots(CmdBase):
                     )
                     return_value = 1
         else:
-            from dvc.ui import ui
-
             ui.warn(
                 "No plots were loaded, visualization file will not be created."
             )
@@ -91,8 +89,6 @@ class CmdPlotsShow(CmdPlots):
     UNINITIALIZED = True
 
     def _log_errors(self, onerror: Onerror):
-        from dvc.ui import ui
-
         ui.warn("DVC failed to load some plots files.")
 
     def _func(self, *args, **kwargs):
@@ -103,8 +99,6 @@ class CmdPlotsDiff(CmdPlots):
     UNINITIALIZED = True
 
     def _log_errors(self, onerror: Onerror):
-        from dvc.ui import ui
-
         ui.warn(
             "DVC failed to load some plots files for following revisions: "
             f"'{', '.join(onerror.errors.keys())}'. "

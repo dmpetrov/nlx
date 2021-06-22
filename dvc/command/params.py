@@ -29,8 +29,6 @@ class CmdParamsDiff(CmdBase):
             return 1
 
         if onerror.errors:
-            from dvc.ui import ui
-
             ui.warn(
                 "DVC failed to load some params files for following "
                 f"revisions: '{', '.join(onerror.errors)}'."

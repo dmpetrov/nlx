@@ -1,4 +1,6 @@
 import logging
+from collections import defaultdict
+from functools import partial
 from typing import Callable, List
 
 from dvc.fs.repo import RepoFileSystem
@@ -7,7 +9,7 @@ from dvc.repo import locked
 from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.repo.live import summary_path_info
 from dvc.scm.base import SCMError
-from dvc.utils import intercept_error
+from dvc.utils import intercept_error, error_handler
 from dvc.utils.serialize import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -29,21 +31,14 @@ def _to_path_infos(metrics: List[Output]) -> DvcPaths:
     return result
 
 
-def _collect_metrics(
-    repo, targets, revision, recursive, onerror: Callable = None
-):
-
-    metrics: Outputs = []
-    path_infos: DvcPaths = []
-
-    with intercept_error(onerror, revision=revision):
-        metrics, path_infos = collect(
-            repo,
-            targets=targets,
-            output_filter=_is_metric,
-            recursive=recursive,
-            rev=revision,
-        )
+def _collect_metrics(repo, targets, revision, recursive):
+    metrics, path_infos = collect(
+        repo,
+        targets=targets,
+        output_filter=_is_metric,
+        recursive=recursive,
+        rev=revision,
+    )
     return _to_path_infos(metrics) + list(path_infos)
 
 
@@ -72,7 +67,8 @@ def _extract_metrics(metrics, path, rev):
     return ret
 
 
-def _read_metric(path, fs, rev):
+@error_handler
+def _read_metric(path, fs, rev, **kwargs):
     val = load_yaml(path, fs=fs)
     val = _extract_metrics(val, path, rev)
     return val or {}
@@ -81,19 +77,20 @@ def _read_metric(path, fs, rev):
 def _read_metrics(repo, metrics, rev, onerror=None):
     fs = RepoFileSystem(repo)
 
-    res = {}
+    res = defaultdict(dict)
     for metric in metrics:
         if not fs.isfile(metric):
             continue
 
-        val = None
-        with intercept_error(onerror, revision=rev, path=str(metric)):
-            val = _read_metric(metric, fs, rev)
-
-        if val:
-            res[str(metric)] = val
+        res[str(metric)] = _read_metric(metric, fs, rev, onerror=onerror)
 
     return res
+
+
+@error_handler
+def _gather_metrics(repo, targets, rev, recursive, onerror):
+    metrics = _collect_metrics(repo, targets, rev, recursive)
+    return _read_metrics(repo, metrics, rev, onerror=onerror)
 
 
 @locked
@@ -114,13 +111,7 @@ def show(
         all_tags=all_tags,
         all_commits=all_commits,
     ):
-        metrics = _collect_metrics(
-            repo, targets, rev, recursive, onerror=onerror
-        )
-        vals = _read_metrics(repo, metrics, rev, onerror=onerror)
-
-        if vals:
-            res[rev] = vals
+        res[rev] = _gather_metrics(repo, targets, rev, recursive, onerror=onerror)
 
     # Hide workspace metrics if they are the same as in the active branch
     try:

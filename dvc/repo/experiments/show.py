@@ -1,6 +1,7 @@
 import logging
 from collections import OrderedDict, defaultdict
 from datetime import datetime
+from functools import partial
 from typing import Any, Callable, Dict, Optional
 
 from dvc.exceptions import InvalidArgumentError
@@ -11,11 +12,12 @@ from dvc.repo.experiments.utils import fix_exp_head
 from dvc.repo.metrics.show import _collect_metrics, _read_metrics
 from dvc.repo.params.show import _collect_configs, _read_params
 from dvc.scm.base import SCMError
-from dvc.utils import intercept_error
+from dvc.utils import error_handler
 
 logger = logging.getLogger(__name__)
 
 
+@error_handler
 def _collect_experiment_commit(
     repo,
     exp_rev,
@@ -91,14 +93,14 @@ def _collect_experiment_branch(
         if len(revs) > 1:
             exp = {"checkpoint_tip": exp_rev}
             if prev:
-                res[prev][  # type: ignore[unreachable]
+                res[prev]["data"][  # type: ignore[unreachable]
                     "checkpoint_parent"
                 ] = rev
             if rev in res:
-                res[rev].update(exp)
+                res[rev]['data'].update(exp)
                 res.move_to_end(rev)
             else:
-                exp.update(collected_exp)
+                exp.update(collected_exp['data'])
         else:
             exp = collected_exp
         if rev not in res:
@@ -149,18 +151,12 @@ def show(
     running = repo.experiments.get_running_exps()
 
     for rev in revs:
-        with intercept_error(onerror, revision=rev):
-            res[rev]["baseline"] = _collect_experiment_commit(
-                repo,
-                rev,
-                sha_only=sha_only,
-                param_deps=param_deps,
-                running=running,
-                onerror=onerror,
-            )
+        res[rev]["baseline"] = _collect_experiment_commit(
+            repo, rev, sha_only=sha_only, param_deps=param_deps, running=running
+        )
 
-            if rev == "workspace":
-                continue
+        if rev == "workspace":
+            continue
 
             ref_info = ExpRefInfo(baseline_sha=rev)
             commits = [
@@ -168,7 +164,7 @@ def show(
                 for ref in repo.scm.iter_refs(base=str(ref_info))
             ]
             for exp_ref, _ in sorted(
-                commits, key=lambda x: x[1].commit_time, reverse=True
+                    commits, key=lambda x: x[1].commit_time, reverse=True
             ):
                 ref_info = ExpRefInfo.from_ref(exp_ref)
                 assert ref_info.baseline_sha == rev
@@ -182,10 +178,9 @@ def show(
                     running=running,
                     onerror=onerror,
                 )
-
-    # collect queued (not yet reproduced) experiments
-    for stash_rev, entry in repo.experiments.stash_revs.items():
-        if entry.baseline_rev in revs:
+            # collect queued (not yet reproduced) experiments
+            for stash_rev, entry in repo.experiments.stash_revs.items():
+                if entry.baseline_rev in revs:
             if stash_rev not in running or not running[stash_rev].get("last"):
                 experiment = _collect_experiment_commit(
                     repo,
@@ -196,5 +191,4 @@ def show(
                     onerror=onerror
                 )
                 res[entry.baseline_rev][stash_rev] = experiment
-
     return res

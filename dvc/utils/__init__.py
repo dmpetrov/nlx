@@ -9,8 +9,9 @@ import re
 import stat
 import sys
 import time
+from collections import defaultdict
 from contextlib import contextmanager
-from typing import Callable, Optional, Tuple
+from typing import Callable, Dict, Optional, Tuple
 
 import colorama
 
@@ -484,24 +485,48 @@ def glob_targets(targets, glob=True, recursive=True):
 
 
 @contextmanager
-def intercept_error(onerror: Callable = None, **kwargs):
+def intercept_error(result: Dict, onerror: Callable = None, **kwargs):
     try:
         yield
     except Exception as e:  # pylint: disable=W0703
         logger.debug("", exc_info=True)
         if onerror is not None:
-            onerror(e, **kwargs)
+            onerror(result, e, **kwargs)
+
+
+def error_handler(func):
+    def wrapper(*args, **kwargs):
+        onerror = kwargs.get("onerror", None)
+        res = {"data": {}}
+
+        try:
+            res["data"] = func(*args, **kwargs)
+        except Exception as e:
+            logger.debug("", exc_info=True)
+            if onerror is not None:
+                onerror(res, e, **kwargs)
+        return res
+    return wrapper
+
+# def catch_error(partial_func, onerror, **kwargs):
+#     res = defaultdict(dict)
+#     res["data"] = {}
+
+    # try:
+    #     res["data"] = partial_func()
+    # except Exception as e:
+    #     logger.debug("", exc_info=True)
+    #     if onerror is not None:
+    #         onerror(res, e, **kwargs)
+    # return res
 
 
 class Onerror:
     def __init__(self):
         self.errors = {}
 
-    def __call__(self, exception: Exception, revision: str, path: str = None):
-        path_d = {path: exception} if path is not None else {}
-        rev_d = {revision: path_d or exception}
-
-        self.errors.update(rev_d)
+    def __call__(self, result: Dict, exception: Exception, *args, **kwargs):
+        result["error"] = str(exception)
 
     def _rev_failed(self, revision: str):
         return isinstance(self.errors.get(revision, None), Exception)

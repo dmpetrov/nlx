@@ -3,13 +3,16 @@ from collections import defaultdict
 from copy import copy
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
+import dpath
+from dpath.util import merge
+
 from dvc.dependency.param import ParamsDependency
 from dvc.path_info import PathInfo
 from dvc.repo import locked
 from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.scm.base import SCMError
 from dvc.stage import PipelineStage
-from dvc.utils import intercept_error
+from dvc.utils import error_handler, intercept_error
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
@@ -25,19 +28,16 @@ def _is_params(dep: "Output"):
 
 
 def _collect_configs(
-    repo: "Repo", rev, targets=None, onerror: Callable = None
+    repo: "Repo", rev, targets=None
 ) -> Tuple[List["Output"], List["DvcPath"]]:
 
-    params: Outputs = []
-    path_infos: DvcPaths = []
-    with intercept_error(onerror, revision=rev):
-        params, path_infos = collect(
-            repo,
-            targets=targets or [],
-            deps=True,
-            output_filter=_is_params,
-            rev=rev,
-        )
+    params, path_infos = collect(
+        repo,
+        targets=targets or [],
+        deps=True,
+        output_filter=_is_params,
+        rev=rev,
+    )
     all_path_infos = path_infos + [p.path_info for p in params]
     if not targets:
         default_params = (
@@ -48,9 +48,11 @@ def _collect_configs(
     return params, path_infos
 
 
-def _read_path_info(fs, path_info):
+@error_handler
+def _read_path_info(fs, path_info, **kwargs):
+    # TODO shouldn't we remove it? error might be information
     if not fs.exists(path_info):
-        return None
+        return {}
 
     suffix = path_info.suffix.lower()
     loader = LOADERS[suffix]
@@ -61,7 +63,6 @@ def _read_params(
     repo,
     params,
     params_path_infos,
-    rev,
     deps=False,
     onerror: Optional[Callable] = None,
 ):
@@ -70,27 +71,21 @@ def _read_params(
 
     if deps:
         for param in params:
-
-            params_dict = {}
-            with intercept_error(onerror, revision=rev, path=param.path_info):
-                params_dict = param.read_params_d()
-
-            res[str(param.path_info)].update(params_dict)
+            params_dict = error_handler(param.read_params_d)(onerror=onerror)
+            if params_dict:
+                res[str(param.path_info)] = params_dict
     else:
         path_infos += [param.path_info for param in params]
 
     for path_info in path_infos:
-
-        from_path = {}
-        with intercept_error(onerror, revision=rev, path=path_info):
-            from_path = _read_path_info(repo.fs, path_info)
-
+        from_path = _read_path_info(repo.fs, path_info)
         if from_path:
             res[str(path_info)] = from_path
 
     return res
 
 
+# TODO
 def _collect_vars(repo, params) -> Dict:
     vars_params: Dict[str, Dict] = defaultdict(dict)
     for stage in repo.stages:
@@ -110,27 +105,12 @@ def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
     res = {}
 
     for branch in repo.brancher(revs=revs):
-        with intercept_error(onerror, revision=branch):
-            param_outs, params_path_infos = _collect_configs(
-                repo, branch, targets, onerror=onerror
-            )
-            params = _read_params(
-                repo,
-                param_outs,
-                params_path_infos,
-                branch,
-                deps,
-                onerror=onerror,
-            )
+        params = error_handler(_gather_params)(
+            repo, branch, targets, deps, onerror
+        )
 
-            vars_params = _collect_vars(repo, params)
-
-            # NOTE: only those that are not added as a ParamDependency are
-            # included so we don't need to recursively merge them yet.
-            params.update(vars_params)
-
-            if params:
-                res[branch] = params
+        if params:
+            res[branch] = params
 
     # Hide workspace params if they are the same as in the active branch
     try:
@@ -144,3 +124,23 @@ def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
             res.pop("workspace", None)
 
     return res
+
+
+def _gather_params(repo, rev, targets=None, deps=False, onerror=None):
+    param_outs, params_path_infos = _collect_configs(
+        repo, rev, targets=targets
+    )
+    params = _read_params(
+        repo,
+        params=param_outs,
+        params_path_infos=params_path_infos,
+        deps=deps,
+        onerror=onerror,
+    )
+    vars_params = _collect_vars(repo, params)
+
+    # NOTE: only those that are not added as a ParamDependency are
+    # included so we don't need to recursively merge them yet.
+    for key, vals in vars_params.items():
+        params[key]["data"] = vals
+    return params

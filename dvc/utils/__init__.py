@@ -11,6 +11,7 @@ import sys
 import time
 from collections import defaultdict
 from contextlib import contextmanager
+from copy import deepcopy
 from typing import Callable, Dict, Optional, Tuple
 
 import colorama
@@ -497,28 +498,31 @@ def intercept_error(result: Dict, onerror: Callable = None, **kwargs):
 def error_handler(func):
     def wrapper(*args, **kwargs):
         onerror = kwargs.get("onerror", None)
-        res = {"data": {}}
+        result = {}
 
         try:
-            res["data"] = func(*args, **kwargs)
+            vals = func(*args, **kwargs)
+            if vals:
+                result["data"] = vals
         except Exception as e:
-            logger.debug("", exc_info=True)
             if onerror is not None:
-                onerror(res, e, **kwargs)
-        return res
+                onerror(result, e, **kwargs)
+        return result
+
     return wrapper
+
 
 # def catch_error(partial_func, onerror, **kwargs):
 #     res = defaultdict(dict)
 #     res["data"] = {}
 
-    # try:
-    #     res["data"] = partial_func()
-    # except Exception as e:
-    #     logger.debug("", exc_info=True)
-    #     if onerror is not None:
-    #         onerror(res, e, **kwargs)
-    # return res
+# try:
+#     res["data"] = partial_func()
+# except Exception as e:
+#     logger.debug("", exc_info=True)
+#     if onerror is not None:
+#         onerror(res, e, **kwargs)
+# return res
 
 
 class Onerror:
@@ -526,6 +530,7 @@ class Onerror:
         self.errors = {}
 
     def __call__(self, result: Dict, exception: Exception, *args, **kwargs):
+        logger.debug("", exc_info=True)
         result["error"] = str(exception)
 
     def _rev_failed(self, revision: str):

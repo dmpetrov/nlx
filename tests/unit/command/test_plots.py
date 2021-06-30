@@ -7,14 +7,6 @@ from dvc.cli import parse_args
 from dvc.command.plots import CmdPlotsDiff, CmdPlotsShow
 
 
-@pytest.fixture
-def onerror(mocker):
-    mock = mocker.patch("dvc.command.plots.Onerror")()
-    mock.errors = {}
-
-    yield mock
-
-
 def test_plots_diff(dvc, mocker, onerror):
     cli_args = parse_args(
         [

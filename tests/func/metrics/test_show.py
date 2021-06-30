@@ -16,7 +16,9 @@ def test_show_simple(tmp_dir, dvc, run_copy_metrics):
     run_copy_metrics(
         "metrics_t.yaml", "metrics.yaml", metrics=["metrics.yaml"]
     )
-    assert dvc.metrics.show() == {"":{"data": {"metrics.yaml": {"data": 1.1}}}}
+    assert dvc.metrics.show() == {
+        "": {"data": {"metrics.yaml": {"data": 1.1}}}
+    }
 
 
 def test_show(tmp_dir, dvc, run_copy_metrics):
@@ -24,7 +26,9 @@ def test_show(tmp_dir, dvc, run_copy_metrics):
     run_copy_metrics(
         "metrics_t.yaml", "metrics.yaml", metrics=["metrics.yaml"]
     )
-    assert dvc.metrics.show() == {"": {"data":{"metrics.yaml": {"data": {"foo": 1.1}}}}}
+    assert dvc.metrics.show() == {
+        "": {"data": {"metrics.yaml": {"data": {"foo": 1.1}}}}
+    }
 
 
 def test_show_multiple(tmp_dir, dvc, run_copy_metrics):
@@ -32,7 +36,11 @@ def test_show_multiple(tmp_dir, dvc, run_copy_metrics):
     tmp_dir.gen("baz_temp", "baz: 2\n")
     run_copy_metrics("foo_temp", "foo", fname="foo.dvc", metrics=["foo"])
     run_copy_metrics("baz_temp", "baz", fname="baz.dvc", metrics=["baz"])
-    assert dvc.metrics.show() == {"": {"data": {"foo": {"data":{"foo": 1}}, "baz": {"data" : {"baz": 2}}}}}
+    assert dvc.metrics.show() == {
+        "": {
+            "data": {"foo": {"data": {"foo": 1}}, "baz": {"data": {"baz": 2}}}
+        }
+    }
 
 
 def test_show_branch(tmp_dir, scm, dvc, run_copy_metrics):
@@ -48,7 +56,7 @@ def test_show_branch(tmp_dir, scm, dvc, run_copy_metrics):
 
     assert dvc.metrics.show(revs=["branch"]) == {
         "workspace": {"data": {"metrics.yaml": {"data": {"foo": 1}}}},
-        "branch": {"data" :{"metrics.yaml": {"data" :{"foo": 2}}}},
+        "branch": {"data": {"metrics.yaml": {"data": {"foo": 2}}}},
     }
 
 
@@ -81,8 +89,8 @@ def test_show_subrepo_with_preexisting_tags(tmp_dir, scm):
 
     expected_path = os.path.join("subdir", "metrics.yaml")
     assert dvc.metrics.show(all_tags=True) == {
-        "workspace": {"data":{expected_path:{"data": {"foo": 1}}}},
-        "v1": {"data":{expected_path: {"data":{"foo": 1}}}},
+        "workspace": {"data": {expected_path: {"data": {"foo": 1}}}},
+        "v1": {"data": {expected_path: {"data": {"foo": 1}}}},
     }
 
 
@@ -99,7 +107,14 @@ def test_missing_cache(tmp_dir, dvc, run_copy_metrics):
     remove(stage.outs[0].fspath)
     remove(stage.outs[0].cache_path)
 
-    assert dvc.metrics.show() == {"": {"data":{"metrics.yaml": {"data":1.1}, 'metrics2.yaml':{'data':{}}}}}
+    assert dvc.metrics.show() == {
+        "": {
+            "data": {
+                "metrics.yaml": {"data": 1.1},
+                "metrics2.yaml": {"data": {}},
+            }
+        }
+    }
 
 
 @pytest.mark.parametrize("use_dvc", [True, False])
@@ -112,7 +127,7 @@ def test_show_non_metric(tmp_dir, scm, use_dvc):
         dvc = Repo(uninitialized=True)
 
     assert dvc.metrics.show(targets=["metrics.yaml"]) == {
-        "": {"data":{"metrics.yaml": {"data":{"foo": 1.1}}}}
+        "": {"data": {"metrics.yaml": {"data": {"foo": 1.1}}}}
     }
 
     if not use_dvc:
@@ -131,8 +146,8 @@ def test_show_non_metric_branch(tmp_dir, scm, use_dvc):
         dvc = Repo(uninitialized=True)
 
     assert dvc.metrics.show(targets=["metrics.yaml"], revs=["branch"]) == {
-        "workspace": {"data":{"metrics.yaml": {"data":{"foo": 1.1}}}},
-        "branch": {"data":{"metrics.yaml": {"data":{"foo": 2.2}}}},
+        "workspace": {"data": {"metrics.yaml": {"data": {"foo": 1.1}}}},
+        "branch": {"data": {"metrics.yaml": {"data": {"foo": 2.2}}}},
     }
 
     if not use_dvc:
@@ -150,18 +165,24 @@ def test_non_metric_and_recurisve_show(tmp_dir, dvc, run_copy_metrics):
     assert dvc.metrics.show(
         targets=["metrics_t.yaml", "metrics"], recursive=True
     ) == {
-        "": {"data":{
-            os.path.join("metrics", "metric1.yaml"): {"data":{"bar": 1.2}},
-            os.path.join("metrics", "metric2.yaml"): {"data":{"foo": 1.1}},
-            "metrics_t.yaml": {"data":{"foo": 1.1}},
+        "": {
+            "data": {
+                os.path.join("metrics", "metric1.yaml"): {
+                    "data": {"bar": 1.2}
+                },
+                os.path.join("metrics", "metric2.yaml"): {
+                    "data": {"foo": 1.1}
+                },
+                "metrics_t.yaml": {"data": {"foo": 1.1}},
+            }
         }
-    }}
+    }
 
 
 def test_show_falsey(tmp_dir, dvc):
     tmp_dir.gen("metrics.json", '{"foo": 0, "bar": 0.0, "baz": {}}')
     assert dvc.metrics.show(targets=["metrics.json"]) == {
-        "": {"data":{"metrics.json": {"data":{"foo": 0, "bar": 0.0}}}}
+        "": {"data": {"metrics.json": {"data": {"foo": 0, "bar": 0.0}}}}
     }
 
 
@@ -175,27 +196,33 @@ def test_show_no_repo(tmp_dir):
     }
 
 
-def test_show_malformed_metric(tmp_dir, scm, dvc, caplog):
+def test_show_malformed_metric(tmp_dir, scm, dvc, caplog, onerror):
     tmp_dir.gen("metric.json", '{"m":1')
 
-    onerror = Onerror()
-    # TODO
-    assert dvc.metrics.show(targets=["metric.json"], onerror=onerror) == {}
+    assert dvc.metrics.show(targets=["metric.json"], onerror=onerror) == {
+        "": {
+            "data": {
+                "metric.json": {
+                    "data": {},
+                    "error": YAMLFileCorruptedError.__name__,
+                }
+            }
+        }
+    }
 
 
 def test_metrics_show_no_target(tmp_dir, dvc, caplog):
     with caplog.at_level(logging.WARNING):
-        assert dvc.metrics.show(targets=["metrics.json"]) == {'': {'data':{}}}
+        assert dvc.metrics.show(targets=["metrics.json"]) == {"": {"data": {}}}
 
     assert (
         "'metrics.json' was not found in current workspace." in caplog.messages
     )
 
-@pytest.fixture
-def onerror():
-    def func(res, exc, *args, **kwargs):
-        res['error'] = exc
-    yield func
+
+def test_show_no_metrics_files(tmp_dir, dvc, caplog):
+    assert dvc.metrics.show() == {"": {"data": {}}}
+
 
 @pytest.mark.parametrize("clear_before_run", [True, False])
 def test_metrics_show_overlap(

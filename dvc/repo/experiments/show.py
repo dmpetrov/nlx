@@ -9,8 +9,12 @@ from dvc.repo import locked
 from dvc.repo.experiments.base import ExpRefInfo
 from dvc.repo.experiments.executor.base import ExecutorInfo
 from dvc.repo.experiments.utils import fix_exp_head
-from dvc.repo.metrics.show import _collect_metrics, _read_metrics
-from dvc.repo.params.show import _collect_configs, _read_params
+from dvc.repo.metrics.show import (
+    _collect_metrics,
+    _gather_metrics,
+    _read_metrics,
+)
+from dvc.repo.params.show import _collect_configs, _gather_params, _read_params
 from dvc.scm.base import SCMError
 from dvc.utils import error_handler
 
@@ -37,16 +41,8 @@ def _collect_experiment_commit(
             commit = repo.scm.resolve_commit(rev)
             res["timestamp"] = datetime.fromtimestamp(commit.commit_time)
 
-        params, params_path_infos = _collect_configs(
-            repo, rev=rev, onerror=onerror
-        )
-        params = _read_params(
-            repo,
-            params,
-            params_path_infos,
-            rev,
-            deps=param_deps,
-            onerror=onerror,
+        params = _gather_params(
+            repo, rev=rev, targets=None, deps=param_deps, onerror=onerror
         )
         if params:
             res["params"] = params
@@ -59,8 +55,9 @@ def _collect_experiment_commit(
             res["running"] = False
             res["executor"] = None
         if not stash:
-            metrics = _collect_metrics(repo, None, rev, False, onerror=onerror)
-            vals = _read_metrics(repo, metrics, rev, onerror=onerror)
+            vals = _gather_metrics(
+                repo, targets=None, rev=rev, recursive=False, onerror=onerror
+            )
             res["metrics"] = vals
 
         if not sha_only and rev != "workspace":
@@ -97,17 +94,17 @@ def _collect_experiment_branch(
                     "checkpoint_parent"
                 ] = rev
             if rev in res:
-                res[rev]['data'].update(exp)
+                res[rev]["data"].update(exp)
                 res.move_to_end(rev)
             else:
-                exp.update(collected_exp['data'])
+                exp.update(collected_exp["data"])
         else:
-            exp = collected_exp
+            exp = collected_exp["data"]
         if rev not in res:
-            res[rev] = exp
+            res[rev] = {"data": exp}
         prev = rev
     if len(revs) > 1:
-        res[prev]["checkpoint_parent"] = baseline
+        res[prev]["data"]["checkpoint_parent"] = baseline
     return res
 
 
@@ -152,42 +149,44 @@ def show(
 
     for rev in revs:
         res[rev]["baseline"] = _collect_experiment_commit(
-            repo, rev, sha_only=sha_only, param_deps=param_deps, running=running
+            repo,
+            rev,
+            sha_only=sha_only,
+            param_deps=param_deps,
+            running=running,
+            onerror=onerror,
         )
 
         if rev == "workspace":
             continue
 
-            ref_info = ExpRefInfo(baseline_sha=rev)
-            commits = [
-                (ref, repo.scm.resolve_commit(ref))
-                for ref in repo.scm.iter_refs(base=str(ref_info))
-            ]
-            for exp_ref, _ in sorted(
-                    commits, key=lambda x: x[1].commit_time, reverse=True
-            ):
-                ref_info = ExpRefInfo.from_ref(exp_ref)
-                assert ref_info.baseline_sha == rev
-                _collect_experiment_branch(
-                    res[rev],
-                    repo,
-                    exp_ref,
-                    rev,
-                    sha_only=sha_only,
-                    param_deps=param_deps,
-                    running=running,
-                    onerror=onerror,
-                )
-            # collect queued (not yet reproduced) experiments
-            for stash_rev, entry in repo.experiments.stash_revs.items():
-                if entry.baseline_rev in revs:
-            if stash_rev not in running or not running[stash_rev].get("last"):
+        ref_info = ExpRefInfo(baseline_sha=rev)
+        commits = [
+            (ref, repo.scm.resolve_commit(ref))
+            for ref in repo.scm.iter_refs(base=str(ref_info))
+        ]
+        for exp_ref, _ in sorted(
+            commits, key=lambda x: x[1].commit_time, reverse=True
+        ):
+            ref_info = ExpRefInfo.from_ref(exp_ref)
+            assert ref_info.baseline_sha == rev
+            _collect_experiment_branch(
+                res[rev],
+                repo,
+                exp_ref,
+                rev,
+                sha_only=sha_only,
+                param_deps=param_deps,
+                running=running,onerror=onerror,
+            )
+        # collect queued (not yet reproduced) experiments
+        for stash_rev, entry in repo.experiments.stash_revs.items():
+            if entry.baseline_rev in revs:if stash_rev not in running or not running[stash_rev].get("last"):
                 experiment = _collect_experiment_commit(
                     repo,
                     stash_rev,
                     stash=stash_rev not in running,
-                    param_deps=param_deps,
-                    running=running,
+                    param_deps=param_deps,running=running,
                     onerror=onerror
                 )
                 res[entry.baseline_rev][stash_rev] = experiment

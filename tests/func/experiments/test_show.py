@@ -10,7 +10,6 @@ from dvc.main import main
 from dvc.repo.experiments.base import EXPS_STASH, ExpRefInfo
 from dvc.repo.experiments.executor.base import BaseExecutor, ExecutorInfo
 from dvc.utils.fs import makedirs
-from dvc.utils import Onerror
 from dvc.utils.serialize import YAMLFileCorruptedError, dump_yaml
 from tests.func.test_repro_multistage import COPY_SCRIPT
 
@@ -18,18 +17,20 @@ from tests.func.test_repro_multistage import COPY_SCRIPT
 def test_show_simple(tmp_dir, scm, dvc, exp_stage):
     assert dvc.experiments.show()["workspace"] == {
         "baseline": {
-            "metrics": {"metrics.yaml": {"foo": 1}},
-            "params": {"params.yaml": {"foo": 1}},
-            "queued": False,
-            "running": False,
+            "data": {
+                "metrics": {"metrics.yaml": {"data": {"foo": 1}}},
+                "params": {"params.yaml": {"data": {"foo": 1}}},
+                "queued": False,
+                "running": False,
             "executor": None,
             "timestamp": None,
+            }
         }
     }
 
 
 @pytest.mark.parametrize("workspace", [True, False])
-def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace):
+def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace, onerror):
     baseline_rev = scm.get_rev()
     timestamp = datetime.fromtimestamp(
         scm.gitpython.repo.rev_parse(baseline_rev).committed_date
@@ -38,16 +39,18 @@ def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace):
     dvc.experiments.run(
         exp_stage.addressing, params=["foo=2"], tmp_dir=not workspace
     )
-    results = dvc.experiments.show()
+    results = dvc.experiments.show(onerror=onerror)
 
     expected_baseline = {
-        "metrics": {"metrics.yaml": {"foo": 1}},
-        "params": {"params.yaml": {"foo": 1}},
-        "queued": False,
-        "running": False,
+        "data": {
+            "metrics": {"metrics.yaml": {"data": {"foo": 1}}},
+            "params": {"params.yaml": {"data": {"foo": 1}}},
+            "queued": False,
+            "running": False,
         "executor": None,
         "timestamp": timestamp,
-        "name": "master",
+            "name": "master",
+        }
     }
     expected_params = {"foo": 2}
 
@@ -58,8 +61,13 @@ def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace):
         if rev == "baseline":
             assert exp == expected_baseline
         else:
-            assert exp["metrics"]["metrics.yaml"] == expected_params
-            assert exp["params"]["params.yaml"] == expected_params
+            assert (
+                exp["data"]["metrics"]["metrics.yaml"]["data"]
+                == expected_params
+            )
+            assert (
+                exp["data"]["params"]["params.yaml"]["data"] == expected_params
+            )
 
 
 def test_show_queued(tmp_dir, scm, dvc, exp_stage):
@@ -71,8 +79,8 @@ def test_show_queued(tmp_dir, scm, dvc, exp_stage):
     results = dvc.experiments.show()[baseline_rev]
     assert len(results) == 2
     exp = results[exp_rev]
-    assert exp["queued"]
-    assert exp["params"]["params.yaml"] == {"foo": 2}
+    assert exp["data"]["queued"]
+    assert exp["data"]["params"]["params.yaml"]["data"] == {"foo": 2}
 
     # test that only queued experiments for the current baseline are returned
     tmp_dir.gen("foo", "foo")
@@ -86,8 +94,8 @@ def test_show_queued(tmp_dir, scm, dvc, exp_stage):
     results = dvc.experiments.show()[new_rev]
     assert len(results) == 2
     exp = results[exp_rev]
-    assert exp["queued"]
-    assert exp["params"]["params.yaml"] == {"foo": 3}
+    assert exp["data"]["queued"]
+    assert exp["data"]["params"]["params.yaml"]["data"] == {"foo": 3}
 
 
 @pytest.mark.parametrize("workspace", [True, False])
@@ -107,7 +115,7 @@ def test_show_checkpoint(
     for rev, exp in results.items():
         if rev != "baseline":
             checkpoints.append(rev)
-            assert exp["checkpoint_tip"] == exp_rev
+            assert exp["data"]["checkpoint_tip"] == exp_rev
 
     capsys.readouterr()
     assert main(["exp", "show", "--no-pager"]) == 0
@@ -437,7 +445,7 @@ def test_show_running_checkpoint(
     assert not results["workspace"]["baseline"]["running"]
 
 
-def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog):
+def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog, onerror):
     baseline_rev = scm.get_rev()
     exp1 = dvc.experiments.run(exp_stage.addressing, params=["foo=2"])
     exp2 = dvc.experiments.run(exp_stage.addressing, params=["foo=3"])
@@ -445,15 +453,18 @@ def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog):
     with open("dvc.yaml", "a") as fd:
         fd.write("breaking the yaml!")
 
-    onerror = Onerror()
-
     result = dvc.experiments.show(onerror=onerror)
     rev1 = first(exp1)
     rev2 = first(exp2)
 
-    assert result[baseline_rev][rev1]["params"]["params.yaml"] == {"foo": 2}
-    assert result[baseline_rev][rev2]["params"]["params.yaml"] == {"foo": 3}
+    assert result[baseline_rev][rev1]["data"]["params"]["params.yaml"][
+        "data"
+    ] == {"foo": 2}
+    assert result[baseline_rev][rev2]["data"]["params"]["params.yaml"][
+        "data"
+    ] == {"foo": 3}
 
-    assert isinstance(onerror.errors["workspace"], YAMLFileCorruptedError)
-
-    assert main(["experiments", "show", "--no-pager"]) == 0
+    assert (
+        result["workspace"]["baseline"]["error"]
+        == YAMLFileCorruptedError.__name__
+    )

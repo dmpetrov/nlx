@@ -1,14 +1,16 @@
 from dvc.repo import Repo
 
 
-def test_show_empty(dvc):
+def test_show_empty(dvc, onerror):
     assert dvc.params.show() == {}
 
 
-def test_show(tmp_dir, dvc):
+def test_show(tmp_dir, dvc, onerror):
     tmp_dir.gen("params.yaml", "foo: bar")
     dvc.run(cmd="echo params.yaml", params=["foo"], single_stage=True)
-    assert dvc.params.show() == {"": {"params.yaml": {"foo": "bar"}}}
+    assert dvc.params.show(onerror=onerror) == {
+        "": {"data": {"params.yaml": {"data": {"foo": "bar"}}}}
+    }
 
 
 def test_show_toml(tmp_dir, dvc):
@@ -17,7 +19,11 @@ def test_show_toml(tmp_dir, dvc):
         cmd="echo params.toml", params=["params.toml:foo"], single_stage=True
     )
     assert dvc.params.show() == {
-        "": {"params.toml": {"foo": {"bar": 42, "baz": [1, 2]}}}
+        "": {
+            "data": {
+                "params.toml": {"data": {"foo": {"bar": 42, "baz": [1, 2]}}}
+            }
+        }
     }
 
 
@@ -32,7 +38,13 @@ def test_show_py(tmp_dir, dvc):
         single_stage=True,
     )
     assert dvc.params.show() == {
-        "": {"params.py": {"CONST": 1, "IS_DIR": True, "Config": {"foo": 42}}}
+        "": {
+            "data": {
+                "params.py": {
+                    "data": {"CONST": 1, "Config": {"foo": 42}, "IS_DIR": True}
+                }
+            }
+        }
     }
 
 
@@ -51,14 +63,16 @@ def test_show_multiple(tmp_dir, dvc):
         single_stage=True,
     )
     assert dvc.params.show() == {
-        "": {"params.yaml": {"foo": "bar", "baz": "qux"}}
+        "": {"data": {"params.yaml": {"data": {"baz": "qux", "foo": "bar"}}}}
     }
 
 
 def test_show_list(tmp_dir, dvc):
     tmp_dir.gen("params.yaml", "foo:\n- bar\n- baz\n")
     dvc.run(cmd="echo params.yaml", params=["foo"], single_stage=True)
-    assert dvc.params.show() == {"": {"params.yaml": {"foo": ["bar", "baz"]}}}
+    assert dvc.params.show() == {
+        "": {"data": {"params.yaml": {"data": {"foo": ["bar", "baz"]}}}}
+    }
 
 
 def test_show_branch(tmp_dir, scm, dvc):
@@ -71,8 +85,8 @@ def test_show_branch(tmp_dir, scm, dvc):
         tmp_dir.scm_gen("params.yaml", "foo: baz", commit="branch")
 
     assert dvc.params.show(revs=["branch"]) == {
-        "workspace": {"params.yaml": {"foo": "bar"}},
-        "branch": {"params.yaml": {"foo": "baz"}},
+        "branch": {"data": {"params.yaml": {"data": {"foo": "baz"}}}},
+        "workspace": {"data": {"params.yaml": {"data": {"foo": "bar"}}}},
     }
 
 
@@ -94,11 +108,17 @@ def test_pipeline_params(tmp_dir, scm, dvc, run_copy):
     )
 
     assert dvc.params.show(revs=["master"], deps=True) == {
-        "master": {"params.yaml": {"foo": "qux", "xyz": "val"}}
+        "master": {
+            "data": {"params.yaml": {"data": {"foo": "qux", "xyz": "val"}}}
+        }
     }
     assert dvc.params.show(revs=["master"]) == {
         "master": {
-            "params.yaml": {"foo": "qux", "xyz": "val", "abc": "ignore"}
+            "data": {
+                "params.yaml": {
+                    "data": {"abc": "ignore", "foo": "qux", "xyz": "val"}
+                }
+            }
         }
     }
 
@@ -109,5 +129,9 @@ def test_show_no_repo(tmp_dir):
     dvc = Repo(uninitialized=True)
 
     assert dvc.params.show(targets=["params_file.yaml"]) == {
-        "": {"params_file.yaml": {"foo": "bar", "xyz": "val"}}
+        "": {
+            "data": {
+                "params_file.yaml": {"data": {"foo": "bar", "xyz": "val"}}
+            }
+        }
     }

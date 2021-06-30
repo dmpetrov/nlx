@@ -9,7 +9,7 @@ from dvc.repo import locked
 from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.repo.live import summary_path_info
 from dvc.scm.base import SCMError
-from dvc.utils import intercept_error, error_handler
+from dvc.utils import error_handler, intercept_error
 from dvc.utils.serialize import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -77,7 +77,7 @@ def _read_metric(path, fs, rev, **kwargs):
 def _read_metrics(repo, metrics, rev, onerror=None):
     fs = RepoFileSystem(repo)
 
-    res = defaultdict(dict)
+    res = {}
     for metric in metrics:
         if not fs.isfile(metric):
             continue
@@ -87,8 +87,7 @@ def _read_metrics(repo, metrics, rev, onerror=None):
     return res
 
 
-@error_handler
-def _gather_metrics(repo, targets, rev, recursive, onerror):
+def _gather_metrics(repo, targets, rev, recursive, onerror=None):
     metrics = _collect_metrics(repo, targets, rev, recursive)
     return _read_metrics(repo, metrics, rev, onerror=onerror)
 
@@ -111,7 +110,9 @@ def show(
         all_tags=all_tags,
         all_commits=all_commits,
     ):
-        res[rev] = _gather_metrics(repo, targets, rev, recursive, onerror=onerror)
+        res[rev] = error_handler(_gather_metrics)(
+            repo, targets, rev, recursive, onerror=onerror
+        )
 
     # Hide workspace metrics if they are the same as in the active branch
     try:

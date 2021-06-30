@@ -16,7 +16,6 @@ from dvc.command.repro import CmdRepro
 from dvc.command.repro import add_arguments as add_repro_arguments
 from dvc.exceptions import DvcException, InvalidArgumentError
 from dvc.ui import ui
-from dvc.utils import Onerror
 from dvc.utils.flatten import flatten
 
 if TYPE_CHECKING:
@@ -93,24 +92,10 @@ def _filter_names(
 
 def _update_names(names, items):
     for name, item in items:
+        item = item.get("data", {})
         if isinstance(item, dict):
             item = flatten(item)
             names[name].update({key: None for key in item})
-
-
-def _fill_empty_values(
-    rev: str, names: Dict[str, Dict], onerror: Optional[Onerror] = None
-):
-    fill_values = deepcopy(names)
-
-    fill_val = FILL_VALUE
-    for file, val_dict in names.items():
-        if onerror and onerror.path_failed(rev, file):
-            fill_val = FILL_VALUE_ERRORED
-        for val_name, _ in val_dict.items():
-            fill_values[file][val_name] = fill_val
-
-    return fill_values
 
 
 def _collect_names(all_experiments, **kwargs):
@@ -118,7 +103,8 @@ def _collect_names(all_experiments, **kwargs):
     param_names = defaultdict(dict)
 
     for _, experiments in all_experiments.items():
-        for exp in experiments.values():
+        for exp_data in experiments.values():
+            exp = exp_data.get("data", {})
             _update_names(metric_names, exp.get("metrics", {}).items())
             _update_names(param_names, exp.get("params", {}).items())
     metric_names = _filter_names(
@@ -155,7 +141,6 @@ def _collect_rows(
     precision=DEFAULT_PRECISION,
     sort_by=None,
     sort_order=None,
-    onerror: Optional[Onerror] = None,
 ):
     from dvc.scm.git import Git
 
@@ -169,7 +154,8 @@ def _collect_rows(
         )
 
     new_checkpoint = True
-    for i, (rev, exp) in enumerate(experiments.items()):
+    for i, (rev, results) in enumerate(experiments.items()):
+        exp = results.get("data", {})
         if exp.get("running"):
             state = "Running"
         elif exp.get("queued"):
@@ -183,7 +169,7 @@ def _collect_rows(
         tip = exp.get("checkpoint_tip")
 
         parent_rev = exp.get("checkpoint_parent", "")
-        parent_exp = experiments.get(parent_rev, {})
+        parent_exp = experiments.get(parent_rev, {}).get("data", {})
         parent_tip = parent_exp.get("checkpoint_tip")
 
         parent = ""
@@ -207,12 +193,10 @@ def _collect_rows(
         if not is_baseline:
             new_checkpoint = not (tip and tip == parent_tip)
 
-        error_rev = base_rev
         if is_baseline:
             name_rev = base_rev[:7] if Git.is_sha(base_rev) else base_rev
         else:
             name_rev = rev[:7]
-            error_rev = rev
 
         row = [
             exp_name,
@@ -223,19 +207,21 @@ def _collect_rows(
             state,
             executor,
         ]
-        metric_names_filled = _fill_empty_values(
-            error_rev, metric_names, onerror=onerror
-        )
-        param_names_filled = _fill_empty_values(
-            error_rev, param_names, onerror=onerror
+        fill_value = FILL_VALUE_ERRORED if results.get("error") else FILL_VALUE
+        _extend_row(
+            row,
+            metric_names,
+            exp.get("metrics", {}).items(),
+            precision,
+            fill_value=fill_value,
         )
         _extend_row(
             row,
-            metric_names_filled,
-            exp.get("metrics", {}),
+            param_names,
+            exp.get("params", {}).items(),
             precision,
+            fill_value=fill_value,
         )
-        _extend_row(row, param_names_filled, exp.get("params", {}), precision)
 
         yield row
 
@@ -298,15 +284,23 @@ def _format_time(timestamp):
     return timestamp.strftime(fmt)
 
 
-def _extend_row(row, names, items, precision):
+def _extend_row(row, names, items, precision, fill_value=FILL_VALUE):
     from rich.text import Text
 
     from dvc.compare import _format_field, with_value
 
-    for fname, item in names.items():
-        for key, fill_value in item.items():
-            actual_value = items.get(fname, {}).get(key, None)
-            value = with_value(actual_value, fill_value)
+    if not items:
+        row.extend(fill_value for keys in names.values() for _ in keys)
+        return
+
+    for fname, data in items:
+        item = data.get("data", {})
+        item = flatten(item) if isinstance(item, dict) else {fname: item}
+        for name in names[fname]:
+            value = with_value(
+                item.get(name),
+                FILL_VALUE_ERRORED if data.get("error", None) else fill_value,
+            )
             # wrap field data in rich.Text, otherwise rich may
             # interpret unescaped braces from list/dict types as rich
             # markup tags
@@ -333,7 +327,6 @@ def experiments_table(
     sort_by=None,
     sort_order=None,
     precision=DEFAULT_PRECISION,
-    onerror: Optional[Onerror] = None,
 ) -> "TabularData":
     from funcy import lconcat
 
@@ -360,7 +353,6 @@ def experiments_table(
             sort_by=sort_by,
             sort_order=sort_order,
             precision=precision,
-            onerror=onerror,
         )
         td.extend(rows)
 
@@ -419,7 +411,6 @@ def show_experiments(
         kwargs.get("sort_by"),
         kwargs.get("sort_order"),
         kwargs.get("precision"),
-        kwargs.get("onerror"),
     )
 
     if no_timestamp:
@@ -484,7 +475,6 @@ def _format_json(item):
 
 class CmdExperimentsShow(CmdBase):
     def run(self):
-        onerror = Onerror()
         try:
             all_experiments = self.repo.experiments.show(
                 all_branches=self.args.all_branches,
@@ -493,7 +483,6 @@ class CmdExperimentsShow(CmdBase):
                 sha_only=self.args.sha,
                 num=self.args.num,
                 param_deps=self.args.param_deps,
-                onerror=onerror,
             )
         except DvcException:
             logger.exception("failed to show experiments")
@@ -515,7 +504,6 @@ class CmdExperimentsShow(CmdBase):
                 sort_order=self.args.sort_order,
                 precision=self.args.precision or DEFAULT_PRECISION,
                 pager=not self.args.no_pager,
-                onerror=onerror,
             )
         return 0
 

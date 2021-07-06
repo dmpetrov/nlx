@@ -526,33 +526,6 @@ def error_handler(func):
 
 
 class Onerror:
-    def __init__(self):
-        self.errors = {}
-
     def __call__(self, result: Dict, exception: Exception, *args, **kwargs):
         logger.debug("", exc_info=True)
         result["error"] = str(exception)
-
-    def _rev_failed(self, revision: str):
-        return isinstance(self.errors.get(revision, None), Exception)
-
-    def path_failed(self, revision: str, path: str):
-        if self._rev_failed(revision):
-            return True
-
-        if self.errors.get(revision, {}).get(path, None):
-            return True
-
-        return False
-
-    def any_failed(self):
-        return bool(self.errors)
-
-    def log_failed_revs(self):
-        from dvc.ui import ui
-
-        revs = "revision" if len(self.errors) == 1 else "revisions"
-        ui.warn(
-            f"Command failed for some file(s) in following {revs}: "
-            f"'{', '.join(self.errors.keys())}'"
-        )

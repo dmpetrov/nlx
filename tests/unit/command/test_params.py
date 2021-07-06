@@ -6,14 +6,6 @@ from dvc.cli import parse_args
 from dvc.command.params import CmdParamsDiff
 
 
-@pytest.fixture
-def onerror(mocker):
-    mock = mocker.patch("dvc.command.params.Onerror")()
-    mock.errors = {}
-
-    yield mock
-
-
 def test_params_diff(dvc, mocker, onerror):
     cli_args = parse_args(
         [

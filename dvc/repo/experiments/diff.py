@@ -35,8 +35,8 @@ def diff(repo, *args, a_rev=None, b_rev=None, param_deps=False, **kwargs):
 
     return {
         key: _diff(
-            format_dict(old[key]),
-            format_dict(new[key]),
+            format_dict(old.get("data", {}).get(key, {})),
+            format_dict(new.get("data", {}).get(key, {})),
             with_unchanged=with_unchanged,
         )
         for key in ["metrics", "params"]

@@ -53,9 +53,10 @@ class CmdPlots(CmdBase):
             return 1
 
         return_value = 0
-        if onerror.any_failed():
-            self._log_errors(onerror)
-            return_value = 1
+        # TODO
+        # if onerror.any_failed():
+        #     self._log_errors(onerror)
+        #     return_value = 1
 
         if plots:
             rel: str = self.args.out or "plots.html"

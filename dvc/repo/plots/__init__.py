@@ -7,7 +7,7 @@ from funcy import cached_property, first, project
 from dvc.exceptions import DvcException
 from dvc.repo.collect import DvcPaths, Outputs
 from dvc.types import StrPath
-from dvc.utils import intercept_error, relpath
+from dvc.utils import relpath, error_handler
 
 if TYPE_CHECKING:
     from dvc.output import Output
@@ -37,7 +37,7 @@ class Plots:
         targets: List[str] = None,
         revs: List[str] = None,
         recursive: bool = False,
-        onerror: Callable = None,
+        onerror: Optional[Callable] = None,
     ) -> Dict[str, Dict]:
         """Collects all props and data for plots.
 
@@ -48,52 +48,59 @@ class Plots:
             }}}
         Data parsing is postponed, since it's affected by props.
         """
-        from dvc.fs.repo import RepoFileSystem
         from dvc.utils.collections import ensure_list
 
         targets = ensure_list(targets)
         data: Dict[str, Dict] = {}
         for rev in self.repo.brancher(revs=revs):
-            with intercept_error(onerror=onerror, revision=rev):
-                # .brancher() adds unwanted workspace
-                if revs is not None and rev not in revs:
-                    continue
-                rev = rev or "workspace"
-
-                fs = RepoFileSystem(self.repo)
-                plots = _collect_plots(
-                    self.repo, targets, rev, recursive, onerror=onerror
-                )
-                for path_info, props in plots.items():
-
-                    if rev not in data:
-                        data[rev] = {}
-
-                    if fs.isdir(path_info):
-                        plot_files = []
-                        for pi in fs.walk_files(path_info):
-                            plot_files.append(
-                                (pi, relpath(pi, self.repo.root_dir))
-                            )
-                    else:
-                        plot_files = [
-                            (path_info, relpath(path_info, self.repo.root_dir))
-                        ]
-
-                    for path, repo_path in plot_files:
-                        with intercept_error(
-                            onerror, revision=rev, path=repo_path
-                        ), fs.open(path) as fd:
-                            data[rev].update(
-                                {
-                                    repo_path: {
-                                        "data": fd.read(),
-                                        "props": props,
-                                    }
-                                }
-                            )
+            # .brancher() adds unwanted workspace
+            if revs is not None and rev not in revs:
+                continue
+            rev = rev or "workspace"
+            data[rev] = self._collect_from_revision(
+                revision=rev,
+                targets=targets,
+                recursive=recursive,
+                onerror=onerror,
+            )
 
         return data
+
+    @error_handler
+    def _collect_from_revision(
+        self,
+        targets: Optional[List[str]] = None,
+        revision: Optional[str] = None,
+        recursive: bool = False,
+        onerror: Optional[Callable] = None,
+    ):
+        from dvc.fs.repo import RepoFileSystem
+
+        fs = RepoFileSystem(self.repo)
+        plots = _collect_plots(
+            self.repo, targets, revision, recursive, onerror=onerror
+        )
+        res = {}
+        for path_info, props in plots.items():
+
+            if fs.isdir(path_info):
+                plot_files = []
+                for pi in fs.walk_files(path_info):
+                    plot_files.append((pi, relpath(pi, self.repo.root_dir)))
+            else:
+                plot_files = [
+                    (path_info, relpath(path_info, self.repo.root_dir))
+                ]
+
+            @error_handler
+            def read(fs, path, **kwargs):
+                with fs.open(path) as fd:
+                    return fd.read()
+
+            for path, repo_path in plot_files:
+                res[repo_path] = {"props": props}
+                res[repo_path].update(read(fs, path, onerror=onerror))
+        return res
 
     @staticmethod
     def render(
@@ -220,16 +227,13 @@ def _collect_plots(
 ) -> Dict[str, Dict]:
     from dvc.repo.collect import collect
 
-    plots: Outputs = []
-    path_infos: DvcPaths = []
-    with intercept_error(onerror, revision=rev):
-        plots, path_infos = collect(
-            repo,
-            output_filter=_is_plot,
-            targets=targets,
-            rev=rev,
-            recursive=recursive,
-        )
+    plots, path_infos = collect(
+        repo,
+        output_filter=_is_plot,
+        targets=targets,
+        rev=rev,
+        recursive=recursive,
+    )
 
     result = {plot.path_info: _plot_props(plot) for plot in plots}
     result.update({path_info: {} for path_info in path_infos})
@@ -263,7 +267,7 @@ def _prepare_plots(data, revs, props):
         if rev not in data:
             continue
 
-        for datafile, desc in data[rev].items():
+        for datafile, desc in data[rev].get("data", {}).items():
             # We silently skip on an absent data file,
             # see also try/except/pass in .collect()
             if "data" not in desc:
@@ -314,14 +318,13 @@ def _render(datafile, datas, props, templates, onerror: Callable = None):
     # Parse all data, preprocess it and collect as a list of dicts
     data = []
     for rev, datablob in datas.items():
-        with intercept_error(onerror, revision=rev, path=datafile):
-            rev_data = plot_data(datafile, rev, datablob).to_datapoints(
-                fields=fields,
-                path=props.get("path"),
-                header=props.get("header", True),
-                append_index=props.get("append_index", False),
-            )
-            data.extend(rev_data)
+        rev_data = plot_data(datafile, rev, datablob).to_datapoints(
+            fields=fields,
+            path=props.get("path"),
+            header=props.get("header", True),
+            append_index=props.get("append_index", False),
+        )
+        data.extend(rev_data)
 
     # If y is not set then use last field not used yet
     if data:

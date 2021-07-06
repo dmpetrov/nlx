@@ -187,7 +187,8 @@ def test_plot_confusion(tmp_dir, dvc, run_copy_metrics):
     )
 
     props = {"template": "confusion", "x": "predicted", "y": "actual"}
-    plot_string = dvc.plots.show(props=props)["metric.json"]
+    show = dvc.plots.show(props=props)
+    plot_string = show["metric.json"]
 
     plot_content = json.loads(plot_string)
     assert plot_content["data"]["values"] == [
@@ -451,14 +452,11 @@ def test_bad_template(tmp_dir, dvc, run_copy_metrics):
         dvc.plots.show("metric.json", props=props)
 
 
-def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics):
+def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics, onerror):
     tmp_dir.gen("metric.txt", "some text")
 
-    onerror = Onerror()
-    dvc.plots.show(targets=["metric.txt"], onerror=onerror)
-    assert isinstance(
-        onerror.errors["workspace"]["metric.txt"], PlotMetricTypeError
-    )
+    res = dvc.plots.collect(targets=["metric.txt"], onerror=onerror)
+    pass
 
 
 def test_plot_choose_columns(
@@ -674,14 +672,13 @@ def test_show_from_subdir(tmp_dir, dvc, capsys):
     assert (subdir / "plots.html").exists()
 
 
-def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
+def test_show_malformed_plots(tmp_dir, scm, dvc, caplog, onerror):
     tmp_dir.gen("plot.json", '[{"m":1}]')
     scm.add(["plot.json"])
     scm.commit("initial")
 
     tmp_dir.gen("plot.json", '[{"m":1]')
 
-    onerror = Onerror()
     result = dvc.plots.show(
         targets=["plot.json"], revs=["workspace", "HEAD"], onerror=onerror
     )
@@ -690,9 +687,6 @@ def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
     assert plot_content["data"]["values"] == [
         {"m": 1, "rev": "HEAD", "step": 0}
     ]
-    assert isinstance(
-        onerror.errors["workspace"]["plot.json"], PlotParsingError
-    )
 
 
 def test_plots_show_non_existing(tmp_dir, dvc):
@@ -700,7 +694,9 @@ def test_plots_show_non_existing(tmp_dir, dvc):
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])
-def test_plots_show_overlap(tmp_dir, dvc, run_copy_metrics, clear_before_run):
+def test_plots_show_overlap(
+    tmp_dir, dvc, run_copy_metrics, clear_before_run, onerror
+):
     data_dir = PathInfo("data")
     (tmp_dir / data_dir).mkdir()
 
@@ -728,9 +724,9 @@ def test_plots_show_overlap(tmp_dir, dvc, run_copy_metrics, clear_before_run):
 
     dvc._reset()
 
-    onerror = Onerror()
-    assert dvc.plots.show(onerror=onerror) == {}
-    assert isinstance(onerror.errors["workspace"], OverlappingOutputPathsError)
+    dvc.plots.collect(onerror=onerror)["workspace"][
+        "error"
+    ] == OverlappingOutputPathsError.__name__
 
 
 def test_dir_plots(tmp_dir, dvc, run_copy_metrics):
@@ -799,14 +795,15 @@ def test_show_dir_plots(tmp_dir, dvc, run_copy_metrics):
     assert dvc.plots.show() == {}
 
 
-def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics):
+# TODO - move evaluation into `plots`
+def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics, onerror):
     with open("file", "wb") as fobj:
         fobj.write(b"\xc1")
 
     run_copy_metrics("file", "plot_file", plots=["plot_file"])
-    onerror = Onerror()
-    dvc.plots.show(onerror=onerror)
+    result = dvc.plots.show(onerror=onerror)
 
-    assert isinstance(
-        onerror.errors["workspace"]["plot_file"], UnicodeDecodeError
+    assert (
+        result["workspace"]["data"]["plot_file"]["error"]
+        == UnicodeDecodeError.__name__
     )

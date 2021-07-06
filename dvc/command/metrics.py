@@ -17,13 +17,15 @@ class CmdMetricsBase(CmdBase):
     UNINITIALIZED = True
 
     def _log_errors(self, onerror: Onerror):
-        if onerror.errors:
-            from dvc.ui import ui
-
-            ui.warn(
-                f"DVC failed to load some metrics for following revisions: "
-                f"'{', '.join(onerror.errors.keys())}'."
-            )
+        pass
+        # TODO
+        # if onerror.errors:
+        #     from dvc.ui import ui
+        #
+        #     ui.warn(
+        #         f"DVC failed to load some metrics for following revisions: "
+        #         f"'{', '.join(onerror.errors.keys())}'."
+        #     )
 
 
 class CmdMetricsShow(CmdMetricsBase):

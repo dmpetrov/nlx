@@ -9,7 +9,7 @@ from dvc.repo import locked
 from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.repo.live import summary_path_info
 from dvc.scm.base import SCMError
-from dvc.utils import error_handler, intercept_error
+from dvc.utils import error_handler
 from dvc.utils.serialize import load_yaml
 
 logger = logging.getLogger(__name__)

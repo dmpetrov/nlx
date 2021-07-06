@@ -108,12 +108,7 @@ def test_missing_cache(tmp_dir, dvc, run_copy_metrics):
     remove(stage.outs[0].cache_path)
 
     assert dvc.metrics.show() == {
-        "": {
-            "data": {
-                "metrics.yaml": {"data": 1.1},
-                "metrics2.yaml": {"data": {}},
-            }
-        }
+        "": {"data": {"metrics.yaml": {"data": 1.1}, "metrics2.yaml": {}}}
     }
 
 
@@ -203,7 +198,6 @@ def test_show_malformed_metric(tmp_dir, scm, dvc, caplog, onerror):
         "": {
             "data": {
                 "metric.json": {
-                    "data": {},
                     "error": YAMLFileCorruptedError.__name__,
                 }
             }
@@ -213,7 +207,7 @@ def test_show_malformed_metric(tmp_dir, scm, dvc, caplog, onerror):
 
 def test_metrics_show_no_target(tmp_dir, dvc, caplog):
     with caplog.at_level(logging.WARNING):
-        assert dvc.metrics.show(targets=["metrics.json"]) == {"": {"data": {}}}
+        assert dvc.metrics.show(targets=["metrics.json"]) == {"": {}}
 
     assert (
         "'metrics.json' was not found in current workspace." in caplog.messages
@@ -221,7 +215,7 @@ def test_metrics_show_no_target(tmp_dir, dvc, caplog):
 
 
 def test_show_no_metrics_files(tmp_dir, dvc, caplog):
-    assert dvc.metrics.show() == {"": {"data": {}}}
+    assert dvc.metrics.show() == {"": {}}
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])

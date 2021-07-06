@@ -12,7 +12,7 @@ from dvc.repo import locked
 from dvc.repo.collect import DvcPaths, Outputs, collect
 from dvc.scm.base import SCMError
 from dvc.stage import PipelineStage
-from dvc.utils import error_handler, intercept_error
+from dvc.utils import error_handler
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:

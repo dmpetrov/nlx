@@ -1,7 +1,6 @@
 import argparse
 import logging
 from collections import Counter, OrderedDict, defaultdict
-from copy import deepcopy
 from datetime import date, datetime
 from fnmatch import fnmatch
 from typing import TYPE_CHECKING, Dict, Iterable, Optional

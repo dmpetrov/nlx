@@ -116,6 +116,23 @@ class Tqdm(tqdm):
     def set_msg(self, msg: str) -> None:
         self.postfix["info"] = f" {msg} |"
 
+    def set_size(self, size):
+        self.total = size
+        self.refresh()
+
+    def as_callback(self):
+        """
+        Create a fsspec.Callback object bound to the current
+        progress bar for the updates
+        """
+        import fsspec
+
+        return fsspec.callback(
+            set_size=self.set_size,
+            relative_update=self.update,
+            absolute_update=self.update_to,
+        )
+
     def update_to(self, current, total=None):
         if total:
             self.total = total

@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from funcy import cached_property
 
+from dvc.path_info import PosixPathInfo
 from dvc.progress import Tqdm
 
 from .base import BaseFileSystem
@@ -12,31 +13,28 @@ from .base import BaseFileSystem
 # pylint: disable=no-member
 class FSSpecWrapper(BaseFileSystem):
     TRAVERSE_PREFIX_LEN = 2
+    SUPPORTS_CALLBACKS = False
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.CAN_TRAVERSE = True
         self.fs_args = {"skip_instance_cache": True}
         self.fs_args.update(self._prepare_credentials(**kwargs))
+
+    @lru_cache(512)
+    def _with_bucket(self, path):
+        if isinstance(path, self.PATH_CLS):
+            return path.path
+        if isinstance(path, PosixPathInfo):
+            return os.fspath(path)
+        return path
 
     @cached_property
     def fs(self):
         raise NotImplementedError
 
-    @lru_cache(512)
-    def _with_bucket(self, path):
-        if isinstance(path, self.PATH_CLS):
-            return f"{path.bucket}/{path.path}"
-        return path
-
     def _strip_bucket(self, entry):
-        try:
-            bucket, path = entry.split("/", 1)
-        except ValueError:
-            # If there is no path attached, only returns
-            # the bucket (top-level).
-            bucket, path = entry, None
-
-        return path or bucket
+        return entry
 
     def _strip_buckets(self, entries, detail=False):
         for entry in entries:
@@ -85,7 +83,12 @@ class FSSpecWrapper(BaseFileSystem):
     ):  # pylint: disable=arguments-differ
         return self.fs.open(self._with_bucket(path_info), mode=mode)
 
+    # pylint: disable=arguments-differ
+    def makedirs(self, path_info, exist_ok=True, **kwargs):
+        self.fs.makedirs(self._with_bucket(path_info), exist_ok=exist_ok)
+
     def copy(self, from_info, to_info):
+        self.makedirs(to_info.parent)
         self.fs.copy(self._with_bucket(from_info), self._with_bucket(to_info))
 
     def exists(self, path_info) -> bool:
@@ -118,18 +121,61 @@ class FSSpecWrapper(BaseFileSystem):
         info["name"] = self._strip_bucket(info["name"])
         return info
 
+    def _put_file(
+        self, from_file, to_info, name=None, no_progress_bar=False, **pbar_args
+    ):
+        with Tqdm(
+            desc=name,
+            disable=no_progress_bar,
+            bytes=True,
+            total=-1,
+            **pbar_args,
+        ) as pbar:
+            self.fs.put_file(
+                self._with_bucket(from_file),
+                self._with_bucket(to_info),
+                callback=pbar.as_callback(),
+            )
+
+    def _get_file(
+        self, from_info, to_file, name=None, no_progress_bar=False, **pbar_args
+    ):
+        with Tqdm(
+            desc=name,
+            disable=no_progress_bar,
+            bytes=True,
+            total=-1,
+            **pbar_args,
+        ) as pbar:
+            self.fs.get_file(
+                self._with_bucket(from_info),
+                self._with_bucket(to_file),
+                callback=pbar.as_callback(),
+            )
+
     def _upload_fobj(self, fobj, to_info, size=None):
+        self.makedirs(to_info.parent)
         with self.open(to_info, "wb") as fdest:
             shutil.copyfileobj(fobj, fdest, length=fdest.blocksize)
 
     def _upload(
         self, from_file, to_info, name=None, no_progress_bar=False, **kwargs
     ):
+        self.makedirs(to_info.parent)
+        if self.SUPPORTS_CALLBACKS:
+            return self._put_file(
+                from_file,
+                to_info,
+                name=name,
+                no_progress_bar=no_progress_bar,
+                **kwargs,
+            )
+
         size = os.path.getsize(from_file)
         with open(from_file, "rb") as fobj:
             self.upload_fobj(
                 fobj,
-                self._with_bucket(to_info),
+                to_info,
                 size=size,
                 desc=name,
                 no_progress_bar=no_progress_bar,
@@ -139,6 +185,15 @@ class FSSpecWrapper(BaseFileSystem):
     def _download(
         self, from_info, to_file, name=None, no_progress_bar=False, **pbar_args
     ):
+        if self.SUPPORTS_CALLBACKS:
+            return self._get_file(
+                from_info,
+                to_file,
+                name=name,
+                no_progress_bar=no_progress_bar,
+                **pbar_args,
+            )
+
         total = self.getsize(self._with_bucket(from_info))
         with self.open(from_info, "rb") as fobj:
             with Tqdm.wrapattr(
@@ -157,6 +212,30 @@ class FSSpecWrapper(BaseFileSystem):
 # pylint: disable=abstract-method
 class ObjectFSWrapper(FSSpecWrapper):
     TRAVERSE_PREFIX_LEN = 3
+
+    @lru_cache(512)
+    def _with_bucket(self, path):
+        if isinstance(path, self.PATH_CLS):
+            return f"{path.bucket}/{path.path}"
+        return path
+
+    def _strip_bucket(self, entry):
+        try:
+            bucket, path = entry.split("/", 1)
+        except ValueError:
+            # If there is no path attached, only returns
+            # the bucket (top-level).
+            bucket, path = entry, None
+
+        return path or bucket
+
+    def makedirs(self, path_info, exist_ok=True, **kwargs):
+        # For object storages make this method a no-op. The original
+        # fs.makedirs() method will only check if the bucket exists
+        # and create if it doesn't though we don't want to support
+        # that behavior, and the check will cost some time so we'll
+        # simply ignore all mkdir()/makedirs() calls.
+        return None
 
     def _isdir(self, path_info):
         # Directory in object storages are interpreted differently

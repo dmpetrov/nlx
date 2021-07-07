@@ -50,18 +50,15 @@ class SSHMocked(Base, URLInfo):
 
     @contextmanager
     def _ssh(self):
-        from dvc.fs.ssh.connection import SSHConnection
+        from sshfs import SSHFileSystem
 
-        conn = SSHConnection(
+        conn = SSHFileSystem(
             host=self.host,
             port=self.port,
             username=TEST_SSH_USER,
-            key_filename=TEST_SSH_KEY_PATH,
+            client_keys=[TEST_SSH_KEY_PATH],
         )
-        try:
-            yield conn
-        finally:
-            conn.close()
+        yield conn
 
     def is_file(self):
         with self._ssh() as _ssh:
@@ -80,19 +77,19 @@ class SSHMocked(Base, URLInfo):
         assert parents
 
         with self._ssh() as _ssh:
-            _ssh.makedirs(self.path)
+            _ssh.makedirs(self.path, exist_ok=exist_ok)
 
     def write_bytes(self, contents):
         assert isinstance(contents, bytes)
         with self._ssh() as _ssh:
-            with _ssh.open(self.path, "w+") as fobj:
+            with _ssh.open(self.path, "wb") as fobj:
                 # NOTE: accepts both str and bytes
                 fobj.write(contents)
 
     def read_bytes(self):
         with self._ssh() as _ssh:
             # NOTE: sftp always reads in binary format
-            with _ssh.open(self.path, "r") as fobj:
+            with _ssh.open(self.path, "rb") as fobj:
                 return fobj.read()
 
     def read_text(self, encoding=None, errors=None):
@@ -114,13 +111,13 @@ def ssh_server(test_config):
 
 @pytest.fixture
 def ssh_connection(ssh_server):
-    from dvc.fs.ssh.connection import SSHConnection
+    from sshfs import SSHFileSystem
 
-    yield SSHConnection(
+    yield SSHFileSystem(
         host=ssh_server.host,
         port=ssh_server.port,
         username=TEST_SSH_USER,
-        key_filename=TEST_SSH_KEY_PATH,
+        client_keys=[TEST_SSH_KEY_PATH],
     )
 
 

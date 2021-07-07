@@ -5,7 +5,6 @@ from dvc.command import completion
 from dvc.command.base import CmdBase, append_doc_link, fix_subparsers
 from dvc.exceptions import DvcException
 from dvc.ui import ui
-from dvc.utils import Onerror
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +14,12 @@ class CmdParamsDiff(CmdBase):
 
     def run(self):
         try:
-            onerror = Onerror()
             diff = self.repo.params.diff(
                 a_rev=self.args.a_rev,
                 b_rev=self.args.b_rev,
                 targets=self.args.targets,
                 all=self.args.all,
                 deps=self.args.deps,
-                onerror=onerror,
             )
         except DvcException:
             logger.exception("failed to show params diff")

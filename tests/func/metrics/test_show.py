@@ -6,7 +6,6 @@ import pytest
 from dvc.exceptions import OverlappingOutputPathsError
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
-from dvc.utils import Onerror
 from dvc.utils.fs import remove
 from dvc.utils.serialize import YAMLFileCorruptedError, dump_yaml, modify_yaml
 
@@ -94,7 +93,7 @@ def test_show_subrepo_with_preexisting_tags(tmp_dir, scm):
     }
 
 
-def test_missing_cache(tmp_dir, dvc, run_copy_metrics):
+def test_missing_cache(tmp_dir, dvc, run_copy_metrics, onerror):
     tmp_dir.gen("metrics_t.yaml", "1.1")
     run_copy_metrics(
         "metrics_t.yaml", "metrics.yaml", metrics=["metrics.yaml"]
@@ -107,8 +106,13 @@ def test_missing_cache(tmp_dir, dvc, run_copy_metrics):
     remove(stage.outs[0].fspath)
     remove(stage.outs[0].cache_path)
 
-    assert dvc.metrics.show() == {
-        "": {"data": {"metrics.yaml": {"data": 1.1}, "metrics2.yaml": {}}}
+    assert dvc.metrics.show(onerror=onerror) == {
+        "": {
+            "data": {
+                "metrics.yaml": {"data": 1.1},
+                "metrics2.yaml": {"error": FileNotFoundError.__name__},
+            }
+        }
     }
 
 
@@ -250,4 +254,4 @@ def test_metrics_show_overlap(
     dvc._reset()
 
     res = dvc.metrics.show(onerror=onerror)
-    pass
+    assert res[""]["error"] == OverlappingOutputPathsError.__name__

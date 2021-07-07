@@ -1,12 +1,8 @@
-import logging
-
-import pytest
-
 from dvc.cli import parse_args
 from dvc.command.params import CmdParamsDiff
 
 
-def test_params_diff(dvc, mocker, onerror):
+def test_params_diff(dvc, mocker):
     cli_args = parse_args(
         [
             "params",
@@ -37,12 +33,11 @@ def test_params_diff(dvc, mocker, onerror):
         targets=["target"],
         all=True,
         deps=True,
-        onerror=onerror,
     )
     show_diff_mock.assert_not_called()
 
 
-def test_params_diff_from_cli(dvc, mocker, onerror):
+def test_params_diff_from_cli(dvc, mocker):
     cli_args = parse_args(["params", "diff"])
     assert cli_args.func == CmdParamsDiff
 
@@ -59,7 +54,6 @@ def test_params_diff_from_cli(dvc, mocker, onerror):
         all=False,
         targets=None,
         deps=False,
-        onerror=onerror,
     )
     show_diff_mock.assert_called_once_with(
         {}, title="Param", markdown=False, no_path=False, show_changes=False

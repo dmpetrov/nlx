@@ -9,9 +9,7 @@ import re
 import stat
 import sys
 import time
-from collections import defaultdict
 from contextlib import contextmanager
-from copy import deepcopy
 from typing import Callable, Dict, Optional, Tuple
 
 import colorama
@@ -504,7 +502,7 @@ def error_handler(func):
             vals = func(*args, **kwargs)
             if vals:
                 result["data"] = vals
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             if onerror is not None:
                 onerror(result, e, **kwargs)
         return result
@@ -512,20 +510,6 @@ def error_handler(func):
     return wrapper
 
 
-# def catch_error(partial_func, onerror, **kwargs):
-#     res = defaultdict(dict)
-#     res["data"] = {}
-
-# try:
-#     res["data"] = partial_func()
-# except Exception as e:
-#     logger.debug("", exc_info=True)
-#     if onerror is not None:
-#         onerror(res, e, **kwargs)
-# return res
-
-
-class Onerror:
-    def __call__(self, result: Dict, exception: Exception, *args, **kwargs):
-        logger.debug("", exc_info=True)
-        result["error"] = str(exception)
+def collect_error(result: Dict, exception: Exception, *args, **kwargs):
+    logger.debug("", exc_info=True)
+    result["error"] = str(exception)

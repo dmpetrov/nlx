@@ -3,16 +3,13 @@ from collections import defaultdict
 from copy import copy
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Tuple
 
-import dpath
-from dpath.util import merge
-
 from dvc.dependency.param import ParamsDependency
 from dvc.path_info import PathInfo
 from dvc.repo import locked
-from dvc.repo.collect import DvcPaths, Outputs, collect
+from dvc.repo.collect import collect
 from dvc.scm.base import SCMError
 from dvc.stage import PipelineStage
-from dvc.utils import error_handler
+from dvc.utils import collect_error, error_handler
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
@@ -102,6 +99,8 @@ def _collect_vars(repo, params) -> Dict:
 
 @locked
 def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
+    if onerror is None:
+        onerror = collect_error
     res = {}
 
     for branch in repo.brancher(revs=revs):

@@ -5,7 +5,7 @@ from dvc.command import completion
 from dvc.command.base import CmdBase, append_doc_link, fix_subparsers
 from dvc.exceptions import DvcException
 from dvc.ui import ui
-from dvc.utils import Onerror, format_link
+from dvc.utils import format_link
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +14,8 @@ class CmdPlots(CmdBase):
     def _func(self, *args, **kwargs):
         raise NotImplementedError
 
-    def _log_errors(self, onerror: Onerror):
+    # TODO
+    def _log_errors(self):
         pass
 
     def _props(self):
@@ -38,10 +39,7 @@ class CmdPlots(CmdBase):
                 return 1
 
         try:
-            onerror = Onerror()
-            plots = self._func(
-                targets=self.args.targets, props=self._props(), onerror=onerror
-            )
+            plots = self._func(targets=self.args.targets, props=self._props())
 
             if self.args.show_vega:
                 target = self.args.targets[0]
@@ -89,7 +87,8 @@ class CmdPlots(CmdBase):
 class CmdPlotsShow(CmdPlots):
     UNINITIALIZED = True
 
-    def _log_errors(self, onerror: Onerror):
+    # TODO
+    def _log_errors(self):
         ui.warn("DVC failed to load some plots files.")
 
     def _func(self, *args, **kwargs):
@@ -99,11 +98,9 @@ class CmdPlotsShow(CmdPlots):
 class CmdPlotsDiff(CmdPlots):
     UNINITIALIZED = True
 
-    def _log_errors(self, onerror: Onerror):
-        ui.warn(
-            "DVC failed to load some plots files for following revisions: "
-            f"'{', '.join(onerror.errors.keys())}'. "
-        )
+    # TODO
+    def _log_errors(self):
+        pass
 
     def _func(self, *args, **kwargs):
         return self.repo.plots.diff(

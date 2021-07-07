@@ -1,7 +1,6 @@
 import logging
 from collections import OrderedDict, defaultdict
 from datetime import datetime
-from functools import partial
 from typing import Any, Callable, Dict, Optional
 
 from dvc.exceptions import InvalidArgumentError
@@ -9,14 +8,10 @@ from dvc.repo import locked
 from dvc.repo.experiments.base import ExpRefInfo
 from dvc.repo.experiments.executor.base import ExecutorInfo
 from dvc.repo.experiments.utils import fix_exp_head
-from dvc.repo.metrics.show import (
-    _collect_metrics,
-    _gather_metrics,
-    _read_metrics,
-)
-from dvc.repo.params.show import _collect_configs, _gather_params, _read_params
+from dvc.repo.metrics.show import _gather_metrics
+from dvc.repo.params.show import _gather_params
 from dvc.scm.base import SCMError
-from dvc.utils import error_handler
+from dvc.utils import collect_error, error_handler
 
 logger = logging.getLogger(__name__)
 
@@ -120,6 +115,9 @@ def show(
     param_deps=False,
     onerror: Optional[Callable] = None,
 ):
+    if onerror is None:
+        onerror = collect_error
+
     res: Dict[str, Dict] = defaultdict(OrderedDict)
 
     if num < 1:

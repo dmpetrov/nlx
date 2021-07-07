@@ -7,7 +7,7 @@ from dvc.cli import parse_args
 from dvc.command.plots import CmdPlotsDiff, CmdPlotsShow
 
 
-def test_plots_diff(dvc, mocker, onerror):
+def test_plots_diff(dvc, mocker):
     cli_args = parse_args(
         [
             "plots",
@@ -57,11 +57,10 @@ def test_plots_diff(dvc, mocker, onerror):
             "y_label": "y_title",
         },
         experiment=True,
-        onerror=onerror,
     )
 
 
-def test_plots_show_vega(dvc, mocker, onerror):
+def test_plots_show_vega(dvc, mocker):
     cli_args = parse_args(
         [
             "plots",
@@ -89,7 +88,6 @@ def test_plots_show_vega(dvc, mocker, onerror):
     m.assert_called_once_with(
         targets=["datafile"],
         props={"template": "template", "header": False},
-        onerror=onerror,
     )
 
 

@@ -10,21 +10,14 @@ from dvc.exceptions import OverlappingOutputPathsError
 from dvc.main import main
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
-from dvc.repo.plots.data import (
-    JSONPlotData,
-    PlotData,
-    PlotMetricTypeError,
-    PlotParsingError,
-    YAMLPlotData,
-)
+from dvc.repo.plots.data import JSONPlotData, PlotData, YAMLPlotData
 from dvc.repo.plots.template import (
     BadTemplateError,
     NoFieldInDataError,
     TemplateNotFoundError,
 )
-from dvc.utils import Onerror
 from dvc.utils.fs import remove
-from dvc.utils.serialize import dump_yaml, dumps_yaml, modify_yaml
+from dvc.utils.serialize import EncodingError, dump_yaml, modify_yaml
 from tests.func.plots.utils import _write_csv, _write_json
 
 
@@ -452,13 +445,6 @@ def test_bad_template(tmp_dir, dvc, run_copy_metrics):
         dvc.plots.show("metric.json", props=props)
 
 
-def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics, onerror):
-    tmp_dir.gen("metric.txt", "some text")
-
-    res = dvc.plots.collect(targets=["metric.txt"], onerror=onerror)
-    pass
-
-
 def test_plot_choose_columns(
     tmp_dir, scm, dvc, custom_template, run_copy_metrics
 ):
@@ -544,24 +530,12 @@ def test_raise_on_wrong_field(tmp_dir, scm, dvc, run_copy_metrics):
         dvc.plots.show("metric.json", props={"y": "no_val"})
 
 
-def test_load_metric_from_dict_json(tmp_dir):
+@pytest.mark.parametrize("data_class", [JSONPlotData, YAMLPlotData])
+def test_find_data_in_dict(tmp_dir, data_class):
     metric = [{"accuracy": 1, "loss": 2}, {"accuracy": 3, "loss": 4}]
     dmetric = {"train": metric}
 
-    plot_data = JSONPlotData("-", "revision", json.dumps(dmetric))
-
-    expected = metric
-    for d in expected:
-        d["rev"] = "revision"
-
-    assert list(map(dict, plot_data.to_datapoints())) == expected
-
-
-def test_load_metric_from_dict_yaml(tmp_dir):
-    metric = [{"accuracy": 1, "loss": 2}, {"accuracy": 3, "loss": 4}]
-    dmetric = {"train": metric}
-
-    plot_data = YAMLPlotData("-", "revision", dumps_yaml(dmetric))
+    plot_data = data_class("-", "revision", dmetric)
 
     expected = metric
     for d in expected:
@@ -724,9 +698,10 @@ def test_plots_show_overlap(
 
     dvc._reset()
 
-    dvc.plots.collect(onerror=onerror)["workspace"][
-        "error"
-    ] == OverlappingOutputPathsError.__name__
+    assert (
+        dvc.plots.collect(onerror=onerror)["workspace"]["error"]
+        == OverlappingOutputPathsError.__name__
+    )
 
 
 def test_dir_plots(tmp_dir, dvc, run_copy_metrics):
@@ -795,15 +770,14 @@ def test_show_dir_plots(tmp_dir, dvc, run_copy_metrics):
     assert dvc.plots.show() == {}
 
 
-# TODO - move evaluation into `plots`
 def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics, onerror):
     with open("file", "wb") as fobj:
         fobj.write(b"\xc1")
 
     run_copy_metrics("file", "plot_file", plots=["plot_file"])
-    result = dvc.plots.show(onerror=onerror)
+    result = dvc.plots.collect(onerror=onerror)
 
     assert (
         result["workspace"]["data"]["plot_file"]["error"]
-        == UnicodeDecodeError.__name__
+        == EncodingError.__name__
     )

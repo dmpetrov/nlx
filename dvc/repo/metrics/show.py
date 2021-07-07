@@ -1,15 +1,13 @@
 import logging
-from collections import defaultdict
-from functools import partial
-from typing import Callable, List
+from typing import List
 
 from dvc.fs.repo import RepoFileSystem
 from dvc.output import Output
 from dvc.repo import locked
-from dvc.repo.collect import DvcPaths, Outputs, collect
+from dvc.repo.collect import DvcPaths, collect
 from dvc.repo.live import summary_path_info
 from dvc.scm.base import SCMError
-from dvc.utils import error_handler
+from dvc.utils import collect_error, error_handler
 from dvc.utils.serialize import load_yaml
 
 logger = logging.getLogger(__name__)
@@ -103,6 +101,9 @@ def show(
     all_commits=False,
     onerror=None,
 ):
+    if onerror is None:
+        onerror = collect_error
+
     res = {}
     for rev in repo.brancher(
         revs=revs,

@@ -1,13 +1,16 @@
+import csv
+import io
 import logging
 import os
+from collections import OrderedDict
 from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from funcy import cached_property, first, project
 
 from dvc.exceptions import DvcException
-from dvc.repo.collect import DvcPaths, Outputs
 from dvc.types import StrPath
-from dvc.utils import relpath, error_handler
+from dvc.utils import error_handler, relpath
+from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
     from dvc.output import Output
@@ -38,15 +41,15 @@ class Plots:
         revs: List[str] = None,
         recursive: bool = False,
         onerror: Optional[Callable] = None,
+        props: Optional[Dict] = None,
     ) -> Dict[str, Dict]:
         """Collects all props and data for plots.
 
         Returns a structure like:
             {rev: {plots.csv: {
                 props: {x: ..., "header": ..., ...},
-                data: "...data as a string...",
+                data: "unstructured data (as stored for given extension)",
             }}}
-        Data parsing is postponed, since it's affected by props.
         """
         from dvc.utils.collections import ensure_list
 
@@ -62,6 +65,7 @@ class Plots:
                 targets=targets,
                 recursive=recursive,
                 onerror=onerror,
+                props=props,
             )
 
         return data
@@ -73,15 +77,14 @@ class Plots:
         revision: Optional[str] = None,
         recursive: bool = False,
         onerror: Optional[Callable] = None,
+        props: Optional[Dict] = None,
     ):
         from dvc.fs.repo import RepoFileSystem
 
         fs = RepoFileSystem(self.repo)
-        plots = _collect_plots(
-            self.repo, targets, revision, recursive, onerror=onerror
-        )
+        plots = _collect_plots(self.repo, targets, revision, recursive)
         res = {}
-        for path_info, props in plots.items():
+        for path_info, rev_props in plots.items():
 
             if fs.isdir(path_info):
                 plot_files = []
@@ -92,20 +95,39 @@ class Plots:
                     (path_info, relpath(path_info, self.repo.root_dir))
                 ]
 
+            props = props or {}
+
             @error_handler
-            def read(fs, path, **kwargs):
-                with fs.open(path) as fd:
-                    return fd.read()
+            def read(fs, path, props=None, rev_props=None, **kwargs):
+                props = props or {}
+                rev_props = rev_props or {}
+                _, extension = os.path.splitext(path)
+                if extension in (".tsv", ".csv"):
+                    header = {**rev_props, **props}.get("header", True)
+                    if extension == ".csv":
+                        return _load_sv(
+                            path=path, fs=fs, delimiter=",", header=header
+                        )
+                    return _load_sv(
+                        path=path, fs=fs, delimiter="\t", header=header
+                    )
+                return LOADERS[extension](path=path, fs=fs)
 
             for path, repo_path in plot_files:
-                res[repo_path] = {"props": props}
-                res[repo_path].update(read(fs, path, onerror=onerror))
+                res[repo_path] = {"props": rev_props}
+                res[repo_path].update(
+                    read(
+                        fs,
+                        path,
+                        rev_props=rev_props,
+                        props=props,
+                        onerror=onerror,
+                    )
+                )
         return res
 
     @staticmethod
-    def render(
-        data, revs=None, props=None, templates=None, onerror: Callable = None
-    ):
+    def render(data, revs=None, props=None, templates=None):
         """Renders plots"""
         props = props or {}
 
@@ -119,7 +141,6 @@ class Plots:
                 desc["data"],
                 desc["props"],
                 templates,
-                onerror=onerror,
             )
             if rendered:
                 result[datafile] = rendered
@@ -135,11 +156,13 @@ class Plots:
         recursive=False,
         onerror=None,
     ):
-        data = self.collect(targets, revs, recursive, onerror=onerror)
+        data = self.collect(
+            targets, revs, recursive, onerror=onerror, props=props
+        )
 
         if templates is None:
             templates = self.templates
-        return self.render(data, revs, props, templates, onerror=onerror)
+        return self.render(data, revs, props, templates)
 
     def diff(self, *args, **kwargs):
         from .diff import diff
@@ -223,7 +246,6 @@ def _collect_plots(
     targets: List[str] = None,
     rev: str = None,
     recursive: bool = False,
-    onerror: Callable = None,
 ) -> Dict[str, Dict]:
     from dvc.repo.collect import collect
 
@@ -297,7 +319,7 @@ def _prepare_plots(data, revs, props):
     return plots
 
 
-def _render(datafile, datas, props, templates, onerror: Callable = None):
+def _render(datafile, datas, props, templates):
     from .data import PlotData, plot_data
 
     # Copy it to not modify a passed value
@@ -317,11 +339,10 @@ def _render(datafile, datas, props, templates, onerror: Callable = None):
 
     # Parse all data, preprocess it and collect as a list of dicts
     data = []
-    for rev, datablob in datas.items():
-        rev_data = plot_data(datafile, rev, datablob).to_datapoints(
+    for rev, unstructured_data in datas.items():
+        rev_data = plot_data(datafile, rev, unstructured_data).to_datapoints(
             fields=fields,
             path=props.get("path"),
-            header=props.get("header", True),
             append_index=props.get("append_index", False),
         )
         data.extend(rev_data)
@@ -335,3 +356,27 @@ def _render(datafile, datas, props, templates, onerror: Callable = None):
 
         return template.render(data, props=props)
     return None
+
+
+def _load_sv(path, fs, delimiter=",", header=True):
+    with fs.open(path, "r") as fd:
+        content = fd.read()
+
+    first_row = first(csv.reader(io.StringIO(content)))
+
+    if header:
+        reader = csv.DictReader(io.StringIO(content), delimiter=delimiter)
+    else:
+        reader = csv.DictReader(
+            io.StringIO(content),
+            delimiter=delimiter,
+            fieldnames=[str(i) for i in range(len(first_row))],
+        )
+
+    fieldnames = reader.fieldnames
+    data = list(reader)
+
+    return [
+        OrderedDict([(field, data_point[field]) for field in fieldnames])
+        for data_point in data
+    ]

@@ -98,28 +98,10 @@ class Plots:
 
             props = props or {}
 
-            @error_handler
-            def read(fs, path, props=None, rev_props=None, **kwargs):
-                props = props or {}
-                rev_props = rev_props or {}
-                _, extension = os.path.splitext(path)
-                if extension in (".tsv", ".csv"):
-                    header = {**rev_props, **props}.get("header", True)
-                    if extension == ".csv":
-                        return _load_sv(
-                            path=path, fs=fs, delimiter=",", header=header
-                        )
-                    return _load_sv(
-                        path=path, fs=fs, delimiter="\t", header=header
-                    )
-                if extension in LOADERS or extension in (".yml", ".yaml"):
-                    return LOADERS[extension](path=path, fs=fs)
-                raise PlotMetricTypeError(path)
-
             for path, repo_path in plot_files:
                 res[repo_path] = {"props": rev_props}
                 res[repo_path].update(
-                    read(
+                    parse(
                         fs,
                         path,
                         rev_props=rev_props,
@@ -265,6 +247,21 @@ def _collect_plots(
     result = {plot.path_info: _plot_props(plot) for plot in plots}
     result.update({path_info: {} for path_info in path_infos})
     return result
+
+
+@error_handler
+def parse(fs, path, props=None, rev_props=None, **kwargs):
+    props = props or {}
+    rev_props = rev_props or {}
+    _, extension = os.path.splitext(path)
+    if extension in (".tsv", ".csv"):
+        header = {**rev_props, **props}.get("header", True)
+        if extension == ".csv":
+            return _load_sv(path=path, fs=fs, delimiter=",", header=header)
+        return _load_sv(path=path, fs=fs, delimiter="\t", header=header)
+    if extension in LOADERS or extension in (".yml", ".yaml"):
+        return LOADERS[extension](path=path, fs=fs)
+    raise PlotMetricTypeError(path)
 
 
 def _plot_props(out: "Output") -> Dict:

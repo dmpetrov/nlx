@@ -112,7 +112,7 @@ class Plots:
                     return _load_sv(
                         path=path, fs=fs, delimiter="\t", header=header
                     )
-                if extension in LOADERS:
+                if extension in LOADERS or extension in (".yml", ".yaml"):
                     return LOADERS[extension](path=path, fs=fs)
                 raise PlotMetricTypeError(path)
 

@@ -14,10 +14,6 @@ class CmdPlots(CmdBase):
     def _func(self, *args, **kwargs):
         raise NotImplementedError
 
-    # TODO
-    def _log_errors(self):
-        pass
-
     def _props(self):
         from dvc.schema import PLOT_PROPS
 
@@ -51,10 +47,6 @@ class CmdPlots(CmdBase):
             return 1
 
         return_value = 0
-        # TODO
-        # if onerror.any_failed():
-        #     self._log_errors(onerror)
-        #     return_value = 1
 
         if plots:
             rel: str = self.args.out or "plots.html"
@@ -87,20 +79,12 @@ class CmdPlots(CmdBase):
 class CmdPlotsShow(CmdPlots):
     UNINITIALIZED = True
 
-    # TODO
-    def _log_errors(self):
-        ui.warn("DVC failed to load some plots files.")
-
     def _func(self, *args, **kwargs):
         return self.repo.plots.show(*args, **kwargs)
 
 
 class CmdPlotsDiff(CmdPlots):
     UNINITIALIZED = True
-
-    # TODO
-    def _log_errors(self):
-        pass
 
     def _func(self, *args, **kwargs):
         return self.repo.plots.diff(

@@ -25,13 +25,6 @@ class CmdParamsDiff(CmdBase):
             logger.exception("failed to show params diff")
             return 1
 
-        # TODO
-        # if onerror.errors:
-        #     ui.warn(
-        #         "DVC failed to load some params files for following "
-        #         f"revisions: '{', '.join(onerror.errors)}'."
-        #     )
-
         if self.args.show_json:
             import json
 
@@ -47,9 +40,6 @@ class CmdParamsDiff(CmdBase):
                 show_changes=False,
             )
 
-        # TODO
-        # if onerror.errors:
-        #     return 1
         return 0
 
 

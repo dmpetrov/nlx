@@ -15,10 +15,6 @@ DEFAULT_PRECISION = 5
 class CmdMetricsBase(CmdBase):
     UNINITIALIZED = True
 
-    # TODO
-    def _log_errors(self):
-        pass
-
 
 class CmdMetricsShow(CmdMetricsBase):
     def run(self):
@@ -33,8 +29,6 @@ class CmdMetricsShow(CmdMetricsBase):
         except DvcException:
             logger.exception("")
             return 1
-
-        self._log_errors()
 
         if self.args.show_json:
             import json
@@ -60,9 +54,6 @@ class CmdMetricsShow(CmdMetricsBase):
                 round_digits=True,
             )
 
-        # TODO
-        # if onerror.errors:
-        #     return 1
         return 0
 
 
@@ -80,8 +71,6 @@ class CmdMetricsDiff(CmdMetricsBase):
             logger.exception("failed to show metrics diff")
             return 1
 
-        self._log_errors()
-
         if self.args.show_json:
             import json
 
@@ -98,8 +87,6 @@ class CmdMetricsDiff(CmdMetricsBase):
                 round_digits=True,
             )
 
-        # if onerror.errors:
-        #     return 1
         return 0
 
 

@@ -9,8 +9,7 @@ import re
 import stat
 import sys
 import time
-from contextlib import contextmanager
-from typing import Callable, Dict, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import colorama
 
@@ -483,16 +482,6 @@ def glob_targets(targets, glob=True, recursive=True):
     ]
 
 
-@contextmanager
-def intercept_error(result: Dict, onerror: Callable = None, **kwargs):
-    try:
-        yield
-    except Exception as e:  # pylint: disable=W0703
-        logger.debug("", exc_info=True)
-        if onerror is not None:
-            onerror(result, e, **kwargs)
-
-
 def error_handler(func):
     def wrapper(*args, **kwargs):
         onerror = kwargs.get("onerror", None)
@@ -510,6 +499,6 @@ def error_handler(func):
     return wrapper
 
 
-def collect_error(result: Dict, exception: Exception, *args, **kwargs):
+def onerror_collect(result: Dict, exception: Exception, *args, **kwargs):
     logger.debug("", exc_info=True)
     result["error"] = exception

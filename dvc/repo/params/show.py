@@ -9,7 +9,7 @@ from dvc.repo import locked
 from dvc.repo.collect import collect
 from dvc.scm.base import SCMError
 from dvc.stage import PipelineStage
-from dvc.utils import collect_error, error_handler
+from dvc.utils import error_handler, onerror_collect
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
@@ -78,7 +78,6 @@ def _read_params(
     return res
 
 
-# TODO
 def _collect_vars(repo, params) -> Dict:
     vars_params: Dict[str, Dict] = defaultdict(dict)
     for stage in repo.stages:
@@ -96,7 +95,7 @@ def _collect_vars(repo, params) -> Dict:
 @locked
 def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
     if onerror is None:
-        onerror = collect_error
+        onerror = onerror_collect
     res = {}
 
     for branch in repo.brancher(revs=revs):

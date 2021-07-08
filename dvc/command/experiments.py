@@ -164,6 +164,11 @@ def _collect_rows(
         executor = exp.get("executor", FILL_VALUE)
         is_baseline = rev == "baseline"
 
+        if is_baseline:
+            name_rev = base_rev[:7] if Git.is_sha(base_rev) else base_rev
+        else:
+            name_rev = rev[:7]
+
         exp_name = exp.get("name", "")
         tip = exp.get("checkpoint_tip")
 
@@ -191,11 +196,6 @@ def _collect_rows(
 
         if not is_baseline:
             new_checkpoint = not (tip and tip == parent_tip)
-
-        if is_baseline:
-            name_rev = base_rev[:7] if Git.is_sha(base_rev) else base_rev
-        else:
-            name_rev = rev[:7]
 
         row = [
             exp_name,

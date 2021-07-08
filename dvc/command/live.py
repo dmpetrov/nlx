@@ -17,8 +17,8 @@ class CmdLive(CmdBase):
             self.repo.plots.write_html(html_path, plots, metrics)
 
             ui.write("\nfile://", os.path.abspath(html_path), sep="")
-
-        return 0
+            return 0
+        return 1
 
 
 class CmdLiveShow(CmdLive):

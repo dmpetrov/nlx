@@ -10,13 +10,18 @@ from dvc.exceptions import OverlappingOutputPathsError
 from dvc.main import main
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
-from dvc.repo.plots.data import JSONPlotData, PlotData, YAMLPlotData
+from dvc.repo.plots.data import (
+    JSONPlotData,
+    PlotData,
+    PlotMetricTypeError,
+    YAMLPlotData,
+)
 from dvc.repo.plots.template import (
     BadTemplateError,
     NoFieldInDataError,
     TemplateNotFoundError,
 )
-from dvc.utils import collect_error
+from dvc.utils import onerror_collect
 from dvc.utils.fs import remove
 from dvc.utils.serialize import EncodingError, dump_yaml, modify_yaml
 from tests.func.plots.utils import _write_csv, _write_json
@@ -446,6 +451,23 @@ def test_bad_template(tmp_dir, dvc, run_copy_metrics):
         dvc.plots.show("metric.json", props=props)
 
 
+def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics):
+    tmp_dir.gen("metric_t.txt", "some text")
+    run_copy_metrics(
+        "metric_t.txt",
+        "metric.txt",
+        plots_no_cache=["metric.txt"],
+        commit="add text metric",
+    )
+
+    assert isinstance(
+        dvc.plots.collect(targets=["metric.txt"], onerror=onerror_collect)[
+            "workspace"
+        ]["data"]["metric.txt"]["error"],
+        PlotMetricTypeError,
+    )
+
+
 def test_plot_choose_columns(
     tmp_dir, scm, dvc, custom_template, run_copy_metrics
 ):
@@ -696,7 +718,7 @@ def test_plots_show_overlap(tmp_dir, dvc, run_copy_metrics, clear_before_run):
     dvc._reset()
 
     assert isinstance(
-        dvc.plots.collect(onerror=collect_error)["workspace"]["error"],
+        dvc.plots.collect(onerror=onerror_collect)["workspace"]["error"],
         OverlappingOutputPathsError,
     )
 
@@ -771,9 +793,9 @@ def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics):
     with open("file", "wb") as fobj:
         fobj.write(b"\xc1")
 
-    run_copy_metrics("file", "plot_file", plots=["plot_file"])
-    result = dvc.plots.collect(onerror=collect_error)
+    run_copy_metrics("file", "plot_file.json", plots=["plot_file.json"])
+    result = dvc.plots.collect(onerror=onerror_collect)
 
     assert isinstance(
-        result["workspace"]["data"]["plot_file"]["error"], EncodingError
+        result["workspace"]["data"]["plot_file.json"]["error"], EncodingError
     )

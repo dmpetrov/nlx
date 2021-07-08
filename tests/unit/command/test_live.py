@@ -20,7 +20,7 @@ def test_live_diff(dvc, mocker):
     cmd = cli_args.func(cli_args)
     m = mocker.patch("dvc.repo.live.Live.show", return_value=({}, {}))
 
-    assert cmd.run() == 0
+    assert cmd.run() == 1
 
     m.assert_called_once_with(target="target", revs=["HEAD", "rev1"])
 
@@ -35,6 +35,6 @@ def test_live_show(dvc, mocker):
 
     m = mocker.patch("dvc.repo.live.Live.show", return_value=({}, {}))
 
-    assert cmd.run() == 0
+    assert cmd.run() == 1
 
     m.assert_called_once_with(target="datafile", revs=None)

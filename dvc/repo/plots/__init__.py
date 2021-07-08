@@ -8,8 +8,9 @@ from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 from funcy import cached_property, first, project
 
 from dvc.exceptions import DvcException
+from dvc.repo.plots.data import PlotMetricTypeError
 from dvc.types import StrPath
-from dvc.utils import collect_error, error_handler, relpath
+from dvc.utils import error_handler, onerror_collect, relpath
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
@@ -111,7 +112,9 @@ class Plots:
                     return _load_sv(
                         path=path, fs=fs, delimiter="\t", header=header
                     )
-                return LOADERS[extension](path=path, fs=fs)
+                if extension in LOADERS:
+                    return LOADERS[extension](path=path, fs=fs)
+                raise PlotMetricTypeError(path)
 
             for path, repo_path in plot_files:
                 res[repo_path] = {"props": rev_props}
@@ -157,7 +160,7 @@ class Plots:
         onerror=None,
     ):
         if onerror is None:
-            onerror = collect_error
+            onerror = onerror_collect
         data = self.collect(
             targets, revs, recursive, onerror=onerror, props=props
         )

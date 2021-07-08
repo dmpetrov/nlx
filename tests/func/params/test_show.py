@@ -1,14 +1,14 @@
 from dvc.repo import Repo
 
 
-def test_show_empty(dvc, onerror):
+def test_show_empty(dvc):
     assert dvc.params.show() == {}
 
 
-def test_show(tmp_dir, dvc, onerror):
+def test_show(tmp_dir, dvc):
     tmp_dir.gen("params.yaml", "foo: bar")
     dvc.run(cmd="echo params.yaml", params=["foo"], single_stage=True)
-    assert dvc.params.show(onerror=onerror) == {
+    assert dvc.params.show() == {
         "": {"data": {"params.yaml": {"data": {"foo": "bar"}}}}
     }
 

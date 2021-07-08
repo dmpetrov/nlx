@@ -30,7 +30,7 @@ def test_show_simple(tmp_dir, scm, dvc, exp_stage):
 
 
 @pytest.mark.parametrize("workspace", [True, False])
-def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace, onerror):
+def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace):
     baseline_rev = scm.get_rev()
     timestamp = datetime.fromtimestamp(
         scm.gitpython.repo.rev_parse(baseline_rev).committed_date
@@ -39,7 +39,7 @@ def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace, onerror):
     dvc.experiments.run(
         exp_stage.addressing, params=["foo=2"], tmp_dir=not workspace
     )
-    results = dvc.experiments.show(onerror=onerror)
+    results = dvc.experiments.show()
 
     expected_baseline = {
         "data": {
@@ -445,7 +445,7 @@ def test_show_running_checkpoint(
     assert not results["workspace"]["baseline"]["running"]
 
 
-def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog, onerror):
+def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog):
     baseline_rev = scm.get_rev()
     exp1 = dvc.experiments.run(exp_stage.addressing, params=["foo=2"])
     exp2 = dvc.experiments.run(exp_stage.addressing, params=["foo=3"])
@@ -453,7 +453,7 @@ def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog, onerror):
     with open("dvc.yaml", "a") as fd:
         fd.write("breaking the yaml!")
 
-    result = dvc.experiments.show(onerror=onerror)
+    result = dvc.experiments.show()
     rev1 = first(exp1)
     rev2 = first(exp2)
 
@@ -464,7 +464,6 @@ def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog, onerror):
         "data"
     ] == {"foo": 3}
 
-    assert (
-        result["workspace"]["baseline"]["error"]
-        == YAMLFileCorruptedError.__name__
+    assert isinstance(
+        result["workspace"]["baseline"]["error"], YAMLFileCorruptedError
     )

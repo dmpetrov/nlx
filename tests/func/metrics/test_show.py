@@ -93,7 +93,7 @@ def test_show_subrepo_with_preexisting_tags(tmp_dir, scm):
     }
 
 
-def test_missing_cache(tmp_dir, dvc, run_copy_metrics, onerror):
+def test_missing_cache(tmp_dir, dvc, run_copy_metrics):
     tmp_dir.gen("metrics_t.yaml", "1.1")
     run_copy_metrics(
         "metrics_t.yaml", "metrics.yaml", metrics=["metrics.yaml"]
@@ -106,11 +106,13 @@ def test_missing_cache(tmp_dir, dvc, run_copy_metrics, onerror):
     remove(stage.outs[0].fspath)
     remove(stage.outs[0].cache_path)
 
-    assert dvc.metrics.show(onerror=onerror) == {
+    result = dvc.metrics.show()
+    metrics2 = result[""]["data"].pop("metrics2.yaml")
+    assert isinstance(metrics2["error"], FileNotFoundError)
+    assert result == {
         "": {
             "data": {
                 "metrics.yaml": {"data": 1.1},
-                "metrics2.yaml": {"error": FileNotFoundError.__name__},
             }
         }
     }
@@ -195,18 +197,15 @@ def test_show_no_repo(tmp_dir):
     }
 
 
-def test_show_malformed_metric(tmp_dir, scm, dvc, caplog, onerror):
+def test_show_malformed_metric(tmp_dir, scm, dvc, caplog):
     tmp_dir.gen("metric.json", '{"m":1')
 
-    assert dvc.metrics.show(targets=["metric.json"], onerror=onerror) == {
-        "": {
-            "data": {
-                "metric.json": {
-                    "error": YAMLFileCorruptedError.__name__,
-                }
-            }
-        }
-    }
+    assert isinstance(
+        dvc.metrics.show(targets=["metric.json"])[""]["data"]["metric.json"][
+            "error"
+        ],
+        YAMLFileCorruptedError,
+    )
 
 
 def test_metrics_show_no_target(tmp_dir, dvc, caplog):
@@ -224,7 +223,7 @@ def test_show_no_metrics_files(tmp_dir, dvc, caplog):
 
 @pytest.mark.parametrize("clear_before_run", [True, False])
 def test_metrics_show_overlap(
-    tmp_dir, dvc, run_copy_metrics, clear_before_run, onerror
+    tmp_dir, dvc, run_copy_metrics, clear_before_run
 ):
     data_dir = PathInfo("data")
     (tmp_dir / data_dir).mkdir()
@@ -253,5 +252,5 @@ def test_metrics_show_overlap(
 
     dvc._reset()
 
-    res = dvc.metrics.show(onerror=onerror)
-    assert res[""]["error"] == OverlappingOutputPathsError.__name__
+    res = dvc.metrics.show()
+    assert isinstance(res[""]["error"], OverlappingOutputPathsError)

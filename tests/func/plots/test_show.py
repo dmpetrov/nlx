@@ -16,6 +16,7 @@ from dvc.repo.plots.template import (
     NoFieldInDataError,
     TemplateNotFoundError,
 )
+from dvc.utils import collect_error
 from dvc.utils.fs import remove
 from dvc.utils.serialize import EncodingError, dump_yaml, modify_yaml
 from tests.func.plots.utils import _write_csv, _write_json
@@ -646,16 +647,14 @@ def test_show_from_subdir(tmp_dir, dvc, capsys):
     assert (subdir / "plots.html").exists()
 
 
-def test_show_malformed_plots(tmp_dir, scm, dvc, caplog, onerror):
+def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
     tmp_dir.gen("plot.json", '[{"m":1}]')
     scm.add(["plot.json"])
     scm.commit("initial")
 
     tmp_dir.gen("plot.json", '[{"m":1]')
 
-    result = dvc.plots.show(
-        targets=["plot.json"], revs=["workspace", "HEAD"], onerror=onerror
-    )
+    result = dvc.plots.show(targets=["plot.json"], revs=["workspace", "HEAD"])
     plot_content = json.loads(result["plot.json"])
 
     assert plot_content["data"]["values"] == [
@@ -668,9 +667,7 @@ def test_plots_show_non_existing(tmp_dir, dvc):
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])
-def test_plots_show_overlap(
-    tmp_dir, dvc, run_copy_metrics, clear_before_run, onerror
-):
+def test_plots_show_overlap(tmp_dir, dvc, run_copy_metrics, clear_before_run):
     data_dir = PathInfo("data")
     (tmp_dir / data_dir).mkdir()
 
@@ -698,9 +695,9 @@ def test_plots_show_overlap(
 
     dvc._reset()
 
-    assert (
-        dvc.plots.collect(onerror=onerror)["workspace"]["error"]
-        == OverlappingOutputPathsError.__name__
+    assert isinstance(
+        dvc.plots.collect(onerror=collect_error)["workspace"]["error"],
+        OverlappingOutputPathsError,
     )
 
 
@@ -770,14 +767,13 @@ def test_show_dir_plots(tmp_dir, dvc, run_copy_metrics):
     assert dvc.plots.show() == {}
 
 
-def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics, onerror):
+def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics):
     with open("file", "wb") as fobj:
         fobj.write(b"\xc1")
 
     run_copy_metrics("file", "plot_file", plots=["plot_file"])
-    result = dvc.plots.collect(onerror=onerror)
+    result = dvc.plots.collect(onerror=collect_error)
 
-    assert (
-        result["workspace"]["data"]["plot_file"]["error"]
-        == EncodingError.__name__
+    assert isinstance(
+        result["workspace"]["data"]["plot_file"]["error"], EncodingError
     )

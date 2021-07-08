@@ -512,4 +512,4 @@ def error_handler(func):
 
 def collect_error(result: Dict, exception: Exception, *args, **kwargs):
     logger.debug("", exc_info=True)
-    result["error"] = str(exception)
+    result["error"] = exception

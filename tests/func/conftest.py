@@ -28,12 +28,3 @@ def run_copy_metrics(tmp_dir, run_copy):
         return stage
 
     return run
-
-
-# TODO
-@pytest.fixture
-def onerror():
-    def func(res, exc, *args, **kwargs):
-        res["error"] = type(exc).__name__
-
-    yield func

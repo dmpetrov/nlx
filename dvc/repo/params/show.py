@@ -47,10 +47,6 @@ def _collect_configs(
 
 @error_handler
 def _read_path_info(fs, path_info, **kwargs):
-    # TODO shouldn't we remove it? error might be information
-    if not fs.exists(path_info):
-        return {}
-
     suffix = path_info.suffix.lower()
     loader = LOADERS[suffix]
     return loader(path_info, fs=fs)

@@ -9,7 +9,7 @@ from funcy import cached_property, first, project
 
 from dvc.exceptions import DvcException
 from dvc.types import StrPath
-from dvc.utils import error_handler, relpath
+from dvc.utils import collect_error, error_handler, relpath
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
@@ -156,6 +156,8 @@ class Plots:
         recursive=False,
         onerror=None,
     ):
+        if onerror is None:
+            onerror = collect_error
         data = self.collect(
             targets, revs, recursive, onerror=onerror, props=props
         )

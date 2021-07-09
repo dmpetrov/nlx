@@ -162,14 +162,13 @@ def add(  # noqa: C901
     desc = "Collecting targets"
     stages_it = create_stages(repo, add_targets, fname, transfer, **kwargs)
     stages = list(ui.progress(stages_it, desc=desc, unit="file"))
-
     msg = "Collecting stages from the workspace"
     with translate_graph_error(stages), ui.status(msg) as status:
         # remove existing stages that are to-be replaced with these
         # new stages for the graph checks.
-        old_stages = set(repo.stages) - set(stages)
+        new_index = repo.index.update(stages)
         status.update("Checking graph")
-        repo.check_modified_graph(stages, list(old_stages))
+        new_index.check_graph()
 
     odb = None
     if to_remote:

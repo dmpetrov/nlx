@@ -26,9 +26,9 @@ def test_plots_order(tmp_dir, dvc):
             name="stage2",
         )
 
-    assert list(dvc.plots.show()) == [
+    assert set(dvc.plots.show()) == {
         "p.json",
         os.path.join("sub", "p4.json"),
         "p1.json",
         os.path.join("sub", "p3.json"),
-    ]
+    }

@@ -1,6 +1,5 @@
 import os
 import pathlib
-from contextlib import suppress
 from typing import TYPE_CHECKING, Union
 
 from funcy import concat, first, lsplit, rpartial, without
@@ -300,30 +299,6 @@ def _check_stage_exists(
         raise DuplicateStageName(
             f"Stage '{stage.name}' already exists in '{stage.relpath}'. {hint}"
         )
-
-
-def validate_state(
-    repo: "Repo", new: Union["Stage", "PipelineStage"], force: bool = False
-) -> None:
-    """Validates that the new stage:
-
-    * does not already exist with the same (name, path), unless force is True.
-    * does not affect the correctness of the repo's graph (to-be graph).
-    """
-    stages = repo.stages[:] if force else None
-    if force:
-        # remove an existing stage (if exists)
-        with suppress(ValueError):
-            # uses name and path to determine this which is same for the
-            # existing (if any) and the new one
-            stages.remove(new)
-    else:
-        _check_stage_exists(repo, new, new.path)
-        # if not `force`, we don't need to replace existing stage with the new
-        # one, as the dumping this is not going to replace it anyway (as the
-        # stage with same path + name does not exist (from above check).
-
-    repo.check_modified_graph(new_stages=[new], old_stages=stages)
 
 
 def validate_kwargs(single_stage: bool = False, fname: str = None, **kwargs):

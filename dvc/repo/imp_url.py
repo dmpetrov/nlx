@@ -67,7 +67,7 @@ def imp_url(
     dvcfile.remove()
 
     try:
-        self.check_modified_graph([stage])
+        _ = self.index.add(stage, check_graphs=True)
     except OutputDuplicationError as exc:
         raise OutputDuplicationError(exc.output, set(exc.stages) - {stage})
 

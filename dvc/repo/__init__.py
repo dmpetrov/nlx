@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from functools import wraps
 from typing import TYPE_CHECKING, Callable, Optional
 
-from funcy import cached_property, cat
+from funcy import cached_property
 
 from dvc.exceptions import FileMissingError
 from dvc.exceptions import IsADirectoryError as DvcIsADirectoryError
@@ -13,9 +13,6 @@ from dvc.exceptions import NotDvcRepoError, OutputNotFoundError
 from dvc.ignore import DvcIgnoreFilter
 from dvc.path_info import PathInfo
 from dvc.utils.fs import path_isin
-
-from .graph import build_graph, build_outs_graph, get_pipelines
-from .trie import build_outs_trie
 
 if TYPE_CHECKING:
     from dvc.fs.base import BaseFileSystem
@@ -207,6 +204,12 @@ class Repo:
     def __str__(self):
         return self.url or self.root_dir
 
+    @cached_property
+    def index(self):
+        from dvc.repo.index import Index
+
+        return Index(self, self.fs)
+
     @staticmethod
     def open(url, *args, **kwargs):
         if url is None:
@@ -323,24 +326,6 @@ class Repo:
 
         self.scm.ignore_list(flist)
 
-    def check_modified_graph(self, new_stages, old_stages=None):
-        """Generate graph including the new stage to check for errors"""
-        # Building graph might be costly for the ones with many DVC-files,
-        # so we provide this undocumented hack to skip it. See [1] for
-        # more details. The hack can be used as:
-        #
-        #     repo = Repo(...)
-        #     repo._skip_graph_checks = True
-        #     repo.add(...)
-        #
-        # A user should care about not duplicating outs and not adding cycles,
-        # otherwise DVC might have an undefined behaviour.
-        #
-        # [1] https://github.com/iterative/dvc/issues/2671
-        if not getattr(self, "_skip_graph_checks", False):
-            existing_stages = self.stages if old_stages is None else old_stages
-            build_graph(existing_stages + new_stages)
-
     def used_objs(
         self,
         targets=None,
@@ -373,17 +358,6 @@ class Repo:
         """
         used = defaultdict(set)
 
-        def _add_suffix(objs, suffix):
-            from dvc.objects.tree import Tree
-
-            for obj in objs:
-                if obj.name is not None:
-                    obj.name += suffix
-                if isinstance(obj, Tree):
-                    for _, entry_obj in obj:
-                        if entry_obj.name is not None:
-                            entry_obj.name += suffix
-
         for branch in self.brancher(
             revs=revs,
             all_branches=all_branches,
@@ -392,24 +366,16 @@ class Repo:
             all_experiments=all_experiments,
         ):
             targets = targets or [None]
-
-            pairs = cat(
-                self.stage.collect_granular(
-                    target, recursive=recursive, with_deps=with_deps
-                )
-                for target in targets
-            )
-
-            for stage, filter_info in pairs:
-                for odb, objs in stage.get_used_objs(
-                    remote=remote,
-                    force=force,
-                    jobs=jobs,
-                    filter_info=filter_info,
-                ).items():
-                    if branch:
-                        _add_suffix(objs, f" ({branch})")
-                    used[odb].update(objs)
+            for odb, objs in self.index.used_objs(
+                targets,
+                rev=branch,
+                remote=remote,
+                force=force,
+                jobs=jobs,
+                recursive=recursive,
+                with_deps=with_deps,
+            ).items():
+                used[odb].update(objs)
 
         if used_run_cache:
             for odb, objs in self.stage_cache.get_used_objs(
@@ -419,35 +385,25 @@ class Repo:
 
         return used
 
-    @cached_property
+    @property
     def outs_trie(self):
-        return build_outs_trie(self.stages)
+        return self.index.outs_trie
 
-    @cached_property
+    @property
     def graph(self):
-        return build_graph(self.stages, self.outs_trie)
+        return self.index.graph
 
-    @cached_property
+    @property
     def outs_graph(self):
-        return build_outs_graph(self.graph, self.outs_trie)
+        return self.index.outs_graph
 
-    @cached_property
+    @property
     def pipelines(self):
-        return get_pipelines(self.graph)
+        return self.index.pipelines
 
-    @cached_property
+    @property
     def stages(self):
-        """
-        Walks down the root directory looking for Dvcfiles,
-        skipping the directories that are related with
-        any SCM (e.g. `.git`), DVC itself (`.dvc`), or directories
-        tracked by DVC (e.g. `dvc add data` would skip `data/`)
-
-        NOTE: For large repos, this could be an expensive
-              operation. Consider using some memoization.
-        """
-        error_handler = self.stage_collection_error_handler
-        return self.stage.collect_repo(onerror=error_handler)
+        return self.index.stages
 
     def find_outs_by_path(self, path, outs=None, recursive=False, strict=True):
         # using `outs_graph` to ensure graph checks are run
@@ -512,11 +468,8 @@ class Repo:
     def _reset(self):
         self.state.close()
         self.scm._reset()  # pylint: disable=protected-access
-        self.__dict__.pop("outs_trie", None)
-        self.__dict__.pop("outs_graph", None)
-        self.__dict__.pop("graph", None)
-        self.__dict__.pop("stages", None)
-        self.__dict__.pop("pipelines", None)
+        self.index.reset()
+        self.__dict__.pop("index", None)
         self.__dict__.pop("dvcignore", None)
 
     def __enter__(self):

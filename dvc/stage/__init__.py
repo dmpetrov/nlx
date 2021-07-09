@@ -688,6 +688,13 @@ class Stage(params.StageParams):
     def dump(self, **kwargs):
         self.dvcfile.dump(self, **kwargs)
 
+    def to_objects(self, include_dependencies: bool = False):
+        for out in self.outs:
+            yield out.get_obj()
+        if include_dependencies:
+            for dep in self.deps:
+                yield dep.get_obj()
+
 
 class PipelineStage(Stage):
     def __init__(self, *args, name=None, **kwargs):

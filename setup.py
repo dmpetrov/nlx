@@ -91,6 +91,7 @@ install_requires = [
     "typing_extensions>=3.7.4",
     "fsspec>=2021.6.1",
     "diskcache>=5.2.1",
+    "pyrsistent>=0.18.0",
 ]
 
 

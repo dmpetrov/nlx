@@ -444,7 +444,7 @@ def test_collect_repo_callback(tmp_dir, dvc, mocker):
     dump_yaml(tmp_dir / PIPELINE_FILE, {"stages": {"cmd": "echo hello world"}})
 
     dvc._reset()
-    assert dvc.stages == [stage]
+    assert dvc.stages == {stage}
     mock.assert_called_once()
 
     file_path, exc = mock.call_args[0]

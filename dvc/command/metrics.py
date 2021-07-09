@@ -5,6 +5,7 @@ from dvc.command import completion
 from dvc.command.base import CmdBase, append_doc_link, fix_subparsers
 from dvc.exceptions import BadMetricError, DvcException
 from dvc.ui import ui
+from dvc.utils.serialize import encode_exception
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +34,7 @@ class CmdMetricsShow(CmdMetricsBase):
         if self.args.show_json:
             import json
 
-            ui.write(json.dumps(metrics))
+            ui.write(json.dumps(metrics, default=encode_exception))
         else:
             from dvc.compare import show_metrics
 

@@ -16,6 +16,7 @@ from dvc.command.repro import add_arguments as add_repro_arguments
 from dvc.exceptions import DvcException, InvalidArgumentError
 from dvc.ui import ui
 from dvc.utils.flatten import flatten
+from dvc.utils.serialize import encode_exception
 
 if TYPE_CHECKING:
     from rich.text import Text
@@ -469,7 +470,7 @@ def _normalize_headers(names):
 def _format_json(item):
     if isinstance(item, (date, datetime)):
         return item.isoformat()
-    raise TypeError
+    return encode_exception(item)
 
 
 class CmdExperimentsShow(CmdBase):

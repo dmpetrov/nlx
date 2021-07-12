@@ -175,17 +175,22 @@ def show(
                 rev,
                 sha_only=sha_only,
                 param_deps=param_deps,
-                running=running,onerror=onerror,
+                running=running,
+                onerror=onerror,
             )
         # collect queued (not yet reproduced) experiments
         for stash_rev, entry in repo.experiments.stash_revs.items():
-            if entry.baseline_rev in revs:if stash_rev not in running or not running[stash_rev].get("last"):
-                experiment = _collect_experiment_commit(
-                    repo,
-                    stash_rev,
-                    stash=stash_rev not in running,
-                    param_deps=param_deps,running=running,
-                    onerror=onerror
-                )
-                res[entry.baseline_rev][stash_rev] = experiment
+            if entry.baseline_rev in revs:
+                if stash_rev not in running or not running[stash_rev].get(
+                    "last"
+                ):
+                    experiment = _collect_experiment_commit(
+                        repo,
+                        stash_rev,
+                        stash=stash_rev not in running,
+                        param_deps=param_deps,
+                        running=running,
+                        onerror=onerror,
+                    )
+                    res[entry.baseline_rev][stash_rev] = experiment
     return res

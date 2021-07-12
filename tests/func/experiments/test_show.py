@@ -22,8 +22,8 @@ def test_show_simple(tmp_dir, scm, dvc, exp_stage):
                 "params": {"params.yaml": {"data": {"foo": 1}}},
                 "queued": False,
                 "running": False,
-            "executor": None,
-            "timestamp": None,
+                "executor": None,
+                "timestamp": None,
             }
         }
     }
@@ -47,8 +47,8 @@ def test_show_experiment(tmp_dir, scm, dvc, exp_stage, workspace):
             "params": {"params.yaml": {"data": {"foo": 1}}},
             "queued": False,
             "running": False,
-        "executor": None,
-        "timestamp": timestamp,
+            "executor": None,
+            "timestamp": timestamp,
             "name": "master",
         }
     }
@@ -370,12 +370,14 @@ def test_show_running_workspace(tmp_dir, scm, dvc, exp_stage, capsys):
 
     assert dvc.experiments.show()["workspace"] == {
         "baseline": {
-            "metrics": {"metrics.yaml": {"foo": 1}},
-            "params": {"params.yaml": {"foo": 1}},
-            "queued": False,
-            "running": True,
-            "executor": info.location,
-            "timestamp": None,
+            "data": {
+                "metrics": {"metrics.yaml": {"data": {"foo": 1}}},
+                "params": {"params.yaml": {"data": {"foo": 1}}},
+                "queued": False,
+                "running": True,
+                "executor": info.location,
+                "timestamp": None,
+            }
         }
     }
 
@@ -398,10 +400,10 @@ def test_show_running_executor(tmp_dir, scm, dvc, exp_stage):
     dump_yaml(pidfile, info.to_dict())
 
     results = dvc.experiments.show()
-    assert not results[baseline_rev][exp_rev]["queued"]
-    assert results[baseline_rev][exp_rev]["running"]
-    assert results[baseline_rev][exp_rev]["executor"] == info.location
-    assert not results["workspace"]["baseline"]["running"]
+    assert not results[baseline_rev][exp_rev]["data"]["queued"]
+    assert results[baseline_rev][exp_rev]["data"]["running"]
+    assert results[baseline_rev][exp_rev]["data"]["executor"] == info.location
+    assert not results["workspace"]["baseline"]["data"]["running"]
 
 
 @pytest.mark.parametrize("workspace", [True, False])
@@ -440,9 +442,12 @@ def test_show_running_checkpoint(
     if workspace:
         scm.set_ref(EXEC_BRANCH, str(exp_ref), symbolic=True)
     results = dvc.experiments.show()
-    assert results[baseline_rev][checkpoint_rev]["running"]
-    assert results[baseline_rev][checkpoint_rev]["executor"] == info.location
-    assert not results["workspace"]["baseline"]["running"]
+    assert results[baseline_rev][checkpoint_rev]["data"]["running"]
+    assert (
+        results[baseline_rev][checkpoint_rev]["data"]["executor"]
+        == info.location
+    )
+    assert not results["workspace"]["baseline"]["data"]["running"]
 
 
 def test_show_with_broken_repo(tmp_dir, scm, dvc, exp_stage, caplog):

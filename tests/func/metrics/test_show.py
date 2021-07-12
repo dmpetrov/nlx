@@ -1,8 +1,11 @@
 import logging
+import operator
 import os
+from functools import reduce
 
 import pytest
 
+from dvc.dvcfile import PIPELINE_FILE
 from dvc.exceptions import OverlappingOutputPathsError
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
@@ -254,3 +257,39 @@ def test_metrics_show_overlap(
 
     res = dvc.metrics.show()
     assert isinstance(res[""]["error"], OverlappingOutputPathsError)
+
+
+@pytest.mark.parametrize(
+    "file,error_path",
+    (
+        (PIPELINE_FILE, ["workspace", "error"]),
+        ("metrics.yaml", ["workspace", "data", "metrics.yaml", "error"]),
+    ),
+)
+def test_log_errors(
+    tmp_dir, scm, dvc, capsys, run_copy_metrics, file, error_path
+):
+    tmp_dir.gen("metrics_t.yaml", "m: 1.1")
+    run_copy_metrics(
+        "metrics_t.yaml",
+        "metrics.yaml",
+        metrics=["metrics.yaml"],
+        single_stage=False,
+        name="train",
+    )
+    scm.tag("v1")
+
+    with open(file, "a") as fd:
+        fd.write("\nMALFORMED!")
+
+    result = dvc.metrics.show(revs=["v1"])
+
+    _, error = capsys.readouterr()
+
+    assert isinstance(
+        reduce(operator.getitem, error_path, result), YAMLFileCorruptedError
+    )
+    assert (
+        "DVC failed to load some metrics for following revisions: 'workspace'."
+        in error
+    )

@@ -9,7 +9,7 @@ import re
 import stat
 import sys
 import time
-from typing import Dict, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import colorama
 
@@ -502,3 +502,13 @@ def error_handler(func):
 def onerror_collect(result: Dict, exception: Exception, *args, **kwargs):
     logger.debug("", exc_info=True)
     result["error"] = exception
+
+
+def errored_revisions(rev_data: Dict) -> List:
+    from dvc.utils.collections import nested_contains
+
+    result = []
+    for revision, data in rev_data.items():
+        if nested_contains(data, "error"):
+            result.append(revision)
+    return result

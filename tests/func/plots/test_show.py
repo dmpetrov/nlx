@@ -1,11 +1,14 @@
 import json
 import logging
+import operator
 import os
 import shutil
 from collections import OrderedDict
+from functools import reduce
 
 import pytest
 
+from dvc.dvcfile import PIPELINE_FILE
 from dvc.exceptions import OverlappingOutputPathsError
 from dvc.main import main
 from dvc.path_info import PathInfo
@@ -23,7 +26,12 @@ from dvc.repo.plots.template import (
 )
 from dvc.utils import onerror_collect
 from dvc.utils.fs import remove
-from dvc.utils.serialize import EncodingError, dump_yaml, modify_yaml
+from dvc.utils.serialize import (
+    EncodingError,
+    YAMLFileCorruptedError,
+    dump_yaml,
+    modify_yaml,
+)
 from tests.func.plots.utils import _write_csv, _write_json
 
 
@@ -798,4 +806,40 @@ def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics):
 
     assert isinstance(
         result["workspace"]["data"]["plot_file.json"]["error"], EncodingError
+    )
+
+
+@pytest.mark.parametrize(
+    "file,error_path",
+    (
+        (PIPELINE_FILE, ["workspace", "error"]),
+        ("plot.yaml", ["workspace", "data", "plot.yaml", "error"]),
+    ),
+)
+def test_log_errors(
+    tmp_dir, scm, dvc, run_copy_metrics, file, error_path, capsys
+):
+    metric = [{"val": 2}, {"val": 3}]
+    dump_yaml("metric_t.yaml", metric)
+    run_copy_metrics(
+        "metric_t.yaml",
+        "plot.yaml",
+        plots=["plot.yaml"],
+        single_stage=False,
+        name="train",
+    )
+    scm.tag("v1")
+
+    with open(file, "a") as fd:
+        fd.write("\nMALFORMED!")
+
+    result = dvc.plots.collect(onerror=onerror_collect)
+    _, error = capsys.readouterr()
+
+    assert isinstance(
+        reduce(operator.getitem, error_path, result), YAMLFileCorruptedError
+    )
+    assert (
+        "DVC failed to load some plots for following revisions: 'workspace'."
+        in error
     )

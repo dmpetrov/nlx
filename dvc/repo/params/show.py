@@ -9,7 +9,8 @@ from dvc.repo import locked
 from dvc.repo.collect import collect
 from dvc.scm.base import SCMError
 from dvc.stage import PipelineStage
-from dvc.utils import error_handler, onerror_collect
+from dvc.ui import ui
+from dvc.utils import error_handler, errored_revisions, onerror_collect
 from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
@@ -40,7 +41,9 @@ def _collect_configs(
         default_params = (
             PathInfo(repo.root_dir) / ParamsDependency.DEFAULT_PARAMS_FILE
         )
-        if default_params not in all_path_infos:
+        if default_params not in all_path_infos and repo.fs.exists(
+            default_params
+        ):
             path_infos.append(default_params)
     return params, path_infos
 
@@ -71,7 +74,7 @@ def _read_params(
         path_infos += [param.path_info for param in params]
 
     for path_info in path_infos:
-        from_path = _read_path_info(repo.fs, path_info)
+        from_path = _read_path_info(repo.fs, path_info, onerror=onerror)
         if from_path:
             res[str(path_info)] = from_path
 
@@ -100,7 +103,7 @@ def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
 
     for branch in repo.brancher(revs=revs):
         params = error_handler(_gather_params)(
-            repo, branch, targets, deps, onerror
+            repo=repo, rev=branch, targets=targets, deps=deps, onerror=onerror
         )
 
         if params:
@@ -116,6 +119,13 @@ def show(repo, revs=None, targets=None, deps=False, onerror: Callable = None):
     else:
         if res.get("workspace") == res.get(active_branch):
             res.pop("workspace", None)
+
+    errored = errored_revisions(res)
+    if errored:
+        ui.error_write(
+            "DVC failed to load some parameters for following revisions:"
+            f" '{', '.join(errored)}'."
+        )
 
     return res
 

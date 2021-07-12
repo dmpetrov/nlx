@@ -41,6 +41,7 @@ class CmdMetricsShow(CmdMetricsBase):
             # When `metrics` contains a `None` key, it means that some files
             # specified as `targets` in `repo.metrics.show` didn't contain any
             # metrics.
+            # TODO is it ever invoked now?
             missing = metrics.pop(None, None)
             if missing:
                 raise BadMetricError(missing)

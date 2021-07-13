@@ -261,3 +261,12 @@ def test_unknown_subcommand_help(capsys):
     captured = capsys.readouterr()
     help_output = captured.out
     assert output == help_output
+
+
+def test_cli_suggestions():
+    try:
+        _ = parse_args(["psh"])
+        _ = parse_args(["fileas"])
+        raise AssertionError
+    except DvcParserError:
+        assert True

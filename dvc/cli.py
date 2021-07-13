@@ -46,6 +46,7 @@ from .command import (
 )
 from .command.base import fix_subparsers
 from .exceptions import DvcParserError
+from .utils.string import fuzzy_match
 
 logger = logging.getLogger(__name__)
 
@@ -108,9 +109,49 @@ def _find_parser(parser, cmd_cls):
 class DvcParser(argparse.ArgumentParser):
     """Custom parser class for dvc CLI."""
 
+    last_invalid_command = None
+
     def error(self, message, cmd_cls=None):  # pylint: disable=arguments-differ
+
+        if self.last_invalid_command and self.print_suggestions():
+            raise DvcParserError()
+
         logger.error(message)
         _find_parser(self, cmd_cls)
+
+    def print_suggestions(self):
+        suggestions = fuzzy_match(
+            self.last_invalid_command, self._get_choices()
+        )
+
+        subparser = self._subparsers
+        if (
+            not suggestions
+            or not subparser._group_actions  # pylint: disable=protected-access
+        ):
+            return False
+
+        help_cmd = (
+            subparser._group_actions[  # pylint: disable=protected-access
+                0
+            ].help
+        )
+
+        parent_cmd = self.prog
+        command_text = (
+            "subcommand" if len(parent_cmd.split()) > 1 else "command"
+        )
+        multi_line_message = [
+            f"dvc: '{self.last_invalid_command}' is "
+            f"not a valid `{parent_cmd}` {command_text}. "
+            f"{help_cmd}"
+            "\t",
+            "",
+            "The most similar commands are:",
+            f"\t{' '.join(suggestions)}",
+        ]
+        logger.info("\n".join(multi_line_message))
+        return True
 
     def parse_args(self, args=None, namespace=None):
         # NOTE: overriding to provide a more granular help message.
@@ -121,6 +162,30 @@ class DvcParser(argparse.ArgumentParser):
             msg = "unrecognized arguments: %s"
             self.error(msg % " ".join(argv), getattr(args, "func", None))
         return args
+
+    def _get_choices(self) -> list:
+        """Gets the list of choices for dvc and its sub-commands"""
+        cmd_choices = [
+            list(action.choices.keys())
+            for action in self._actions
+            if action.dest == "cmd"
+            and isinstance(
+                action.choices, dict
+            )  # pylint: disable=protected-access
+        ]
+        if not cmd_choices:
+            return []
+
+        return cmd_choices[0]
+
+    def _check_value(self, action, value):
+        # NOTE: overriding to get the last invalid command
+        try:
+            self.last_invalid_command = None
+            super()._check_value(action, value)
+        except argparse.ArgumentError as arg_exc:
+            self.last_invalid_command = value
+            raise arg_exc
 
 
 class VersionAction(argparse.Action):  # pragma: no cover

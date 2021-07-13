@@ -228,10 +228,27 @@ def _build_sqlite_uri(filename, options):
 
     # Convert filename to uri according to https://www.sqlite.org/uri.html, 3.1
     uri_path = uri_path.replace("?", "%3f").replace("#", "%23")
+    authority = ""
     if os.name == "nt":
         uri_path = uri_path.replace("\\", "/")
-        uri_path = re.sub(r"^([a-z]:)", "/\\1", uri_path, flags=re.I)
-    uri_path = re.sub(r"/+", "/", uri_path)
+        if (len(uri_path) > 2) and (uri_path[:2] == "//"):
+            # The path is a URN path
+            # Due to a bug in sqlite, the standard URI of:
+            # file://server/dir/file
+            # doesn't work, so need to either use:
+            # file:////server/dir/file
+            # or
+            # file://localhost//server/dir/file
+            # easiest to do the latter with current structure
+            # In future versions of sqlite, this may not be necessary
+            authority = "localhost"
+        else:
+            uri_path = re.sub(r"^([a-z]:)", "/\\1", uri_path, flags=re.I)
+            uri_path = re.sub(r"/+", "/", uri_path)
+    else:
+        uri_path = re.sub(r"/+", "/", uri_path)
 
     # Empty netloc, params and fragment
-    return urlunparse(("file", "", uri_path, "", urlencode(options), ""))
+    return urlunparse(
+        ("file", authority, uri_path, "", urlencode(options), "")
+    )

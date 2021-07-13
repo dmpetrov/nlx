@@ -16,6 +16,11 @@ from dvc.state import _build_sqlite_uri
         ("C:\\abs\\path space", "nt", "file:///C:/abs/path space"),
         ("/abs/path%20encoded", "posix", "file:///abs/path%2520encoded"),
         ("C:\\abs\\path%20encoded", "nt", "file:///C:/abs/path%2520encoded"),
+        (
+            "\\\\server\\share\\dir\\file",
+            "nt",
+            "file://localhost//server/share/dir/file",
+        ),
     ],
 )
 def test_build_uri(path, osname, result, mocker):

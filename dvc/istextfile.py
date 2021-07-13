@@ -5,6 +5,7 @@
 
 
 TEXT_CHARS = bytes(range(32, 127)) + b"\n\r\t\f\b"
+DEFAULT_CHUNK_SIZE = 512
 
 
 def istextblock(block):
@@ -22,7 +23,7 @@ def istextblock(block):
     return float(len(nontext)) / len(block) <= 0.30
 
 
-def istextfile(fname, fs, blocksize=512):
+def istextfile(fname, fs, blocksize=DEFAULT_CHUNK_SIZE):
     """Uses heuristics to guess whether the given file is text or binary,
     by reading a single block of bytes from the file.
     If more than 30% of the chars in the block are non-text, or there

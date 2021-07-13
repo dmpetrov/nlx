@@ -242,7 +242,7 @@ class Plots:
     ):
         if not html_template_path:
             html_template_path = self.repo.config.get("plots", {}).get(
-                "html_template", None
+                "html", None
             )
             if html_template_path and not os.path.isabs(html_template_path):
                 html_template_path = os.path.join(

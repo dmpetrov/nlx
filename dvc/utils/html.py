@@ -12,7 +12,7 @@ PAGE_HTML = """<!DOCTYPE html>
     <script src="https://cdn.jsdelivr.net/npm/vega-embed@6.5.1"></script>
 </head>
 <body>
-    {plot_divs}
+    {dvc_plots}
 </body>
 </html>"""
 
@@ -29,7 +29,7 @@ class MissingPlaceholderError(DvcException):
 
 
 class HTML:
-    PLACEHOLDER = "plot_divs"
+    PLACEHOLDER = "dvc_plots"
     PLACEHOLDER_FORMAT_STR = f"{{{PLACEHOLDER}}}"
 
     def __init__(self, template: str = None):

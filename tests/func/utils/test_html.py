@@ -11,7 +11,7 @@ CUSTOM_PAGE_HTML = """<!DOCTYPE html>
     <script type="text/javascript" src="vega-embed"></script>
 </head>
 <body>
-    {plot_divs}
+    {dvc_plots}
 </body>
 </html>"""
 
@@ -19,11 +19,11 @@ CUSTOM_PAGE_HTML = """<!DOCTYPE html>
 @pytest.mark.parametrize(
     "template,page_elements,expected_page",
     [
-        (None, ["content"], PAGE_HTML.format(plot_divs="content")),
+        (None, ["content"], PAGE_HTML.format(dvc_plots="content")),
         (
             CUSTOM_PAGE_HTML,
             ["content"],
-            CUSTOM_PAGE_HTML.format(plot_divs="content"),
+            CUSTOM_PAGE_HTML.format(dvc_plots="content"),
         ),
     ],
 )

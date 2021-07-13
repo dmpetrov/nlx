@@ -40,6 +40,6 @@ def add_parser(subparsers, parent_parser):
     remove_parser.add_argument(
         "targets",
         nargs="+",
-        help=".dvc files or stages from dvc.yaml to remove.",
+        help="Tracked files/directories, stage names, or .dvc files.",
     ).complete = completion.DVC_FILE
     remove_parser.set_defaults(func=CmdRemove)

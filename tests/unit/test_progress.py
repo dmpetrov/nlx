@@ -1,7 +1,6 @@
 import logging
 import sys
-
-import mock
+from unittest import mock
 
 from dvc.progress import Tqdm
 from dvc.utils import env2bool

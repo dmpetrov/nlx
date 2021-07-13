@@ -4,8 +4,8 @@ import os
 import textwrap
 import uuid
 from pathlib import Path
+from unittest import mock
 
-import mock
 import pytest
 
 from dvc.dependency.base import DependencyIsStageFileError

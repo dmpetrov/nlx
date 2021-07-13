@@ -1,6 +1,5 @@
 import os
-
-from mock import patch
+from unittest.mock import patch
 
 from dvc.hash_info import HashInfo
 from dvc.output import Output

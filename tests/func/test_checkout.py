@@ -5,9 +5,9 @@ import os
 import shutil
 import stat
 import textwrap
+from unittest.mock import patch
 
 import pytest
-from mock import patch
 
 from dvc.dvcfile import DVC_FILE_SUFFIX, PIPELINE_FILE, Dvcfile
 from dvc.exceptions import (

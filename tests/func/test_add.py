@@ -5,10 +5,10 @@ import shutil
 import stat
 import textwrap
 import time
+from unittest.mock import call, patch
 
 import colorama
 import pytest
-from mock import call, patch
 
 import dvc as dvc_module
 from dvc.dvcfile import DVC_FILE_SUFFIX

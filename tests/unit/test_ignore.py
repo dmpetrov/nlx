@@ -1,7 +1,7 @@
 import os
+from unittest.mock import MagicMock, mock_open, patch
 
 import pytest
-from mock import MagicMock, mock_open, patch
 
 from dvc.ignore import DvcIgnorePatterns
 

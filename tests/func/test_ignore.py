@@ -21,7 +21,7 @@ def _to_pattern_info_list(str_list: List):
 @pytest.mark.parametrize("filename", ["ignored", "тест"])
 def test_ignore(tmp_dir, dvc, filename):
     tmp_dir.gen({"dir": {filename: filename, "other": "text2"}})
-    tmp_dir.gen(DvcIgnore.DVCIGNORE_FILE, "dir/{}".format(filename))
+    tmp_dir.gen(DvcIgnore.DVCIGNORE_FILE, f"dir/{filename}")
 
     dvc._reset()
 
@@ -342,17 +342,17 @@ def test_pattern_trie_fs(tmp_dir, dvc):
     first_pattern = merge_patterns(
         *base_pattern,
         _to_pattern_info_list(["a", "b", "c"]),
-        os.fspath(tmp_dir / "top" / "first")
+        os.fspath(tmp_dir / "top" / "first"),
     )
     second_pattern = merge_patterns(
         *first_pattern,
         _to_pattern_info_list(["d", "e", "f"]),
-        os.fspath(tmp_dir / "top" / "first" / "middle" / "second")
+        os.fspath(tmp_dir / "top" / "first" / "middle" / "second"),
     )
     other_pattern = merge_patterns(
         *base_pattern,
         _to_pattern_info_list(["1", "2", "3"]),
-        os.fspath(tmp_dir / "other")
+        os.fspath(tmp_dir / "other"),
     )
 
     assert DvcIgnorePatterns(*base_pattern) == ignore_pattern_top

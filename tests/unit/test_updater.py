@@ -2,8 +2,8 @@ import json
 import logging
 import os
 import time
+from unittest import mock
 
-import mock
 import pytest
 
 from dvc import __version__

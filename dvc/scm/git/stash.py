@@ -46,7 +46,7 @@ class Stash:
 
     def pop(self):
         logger.debug("Popping from stash '%s'", self.ref)
-        ref = "{0}@{{0}}".format(self.ref)
+        ref = f"{self.ref}@{{0}}"
         rev = self.scm.resolve_rev(ref)
         try:
             self.apply(rev)

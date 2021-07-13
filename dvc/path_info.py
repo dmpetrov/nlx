@@ -52,7 +52,7 @@ class PathInfo(pathlib.PurePath, _BasePath):
         return relpath(path)
 
     def __repr__(self):
-        return "{}: '{}'".format(type(self).__name__, self)
+        return f"{type(self).__name__}: '{self}'"
 
     # This permits passing it to file utils directly in Python 3.6+
     def __fspath__(self):
@@ -174,7 +174,7 @@ class URLInfo(_BasePath):
         return self.url
 
     def __repr__(self):
-        return "{}: '{}'".format(type(self).__name__, self)
+        return f"{type(self).__name__}: '{self}'"
 
     def __eq__(self, other):
         if isinstance(other, (str, bytes)):

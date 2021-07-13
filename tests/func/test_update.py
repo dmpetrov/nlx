@@ -144,7 +144,7 @@ def test_update_before_and_after_dvc_init(tmp_dir, dvc, git_dir):
         "file.dvc": [
             {
                 "changed deps": {
-                    "file ({})".format(os.fspath(git_dir)): "update available"
+                    f"file ({os.fspath(git_dir)})": "update available"
                 }
             }
         ]

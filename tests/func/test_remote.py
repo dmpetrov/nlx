@@ -1,10 +1,10 @@
 import errno
 import os
 import stat
+from unittest.mock import patch
 
 import configobj
 import pytest
-from mock import patch
 
 from dvc.config import Config
 from dvc.exceptions import DownloadError, RemoteCacheRequiredError, UploadError

@@ -39,7 +39,7 @@ class CmdDataStatus(CmdDataBase):
 
         for key, value in status.items():
             if isinstance(value, str):
-                ui.write("{}{}{}".format(ind, self._normalize(value), key))
+                ui.write(f"{ind}{self._normalize(value)}{key}")
             elif value:
                 ui.write(f"{ind}{key}:")
                 self._show(value, indent + 1)

@@ -2,8 +2,8 @@ import os
 import signal
 import subprocess
 import threading
+from unittest import mock
 
-import mock
 import pytest
 
 from dvc.dependency.repo import RepoDependency

@@ -238,7 +238,7 @@ def test_push_refspec(tmp_dir, scm, make_tmp_dir, use_url):
         }
     )
     remote_dir = make_tmp_dir("git-remote", scm=True)
-    url = "file://{}".format(remote_dir.resolve().as_posix())
+    url = f"file://{remote_dir.resolve().as_posix()}"
     scm.gitpython.repo.create_remote("origin", url)
 
     with pytest.raises(SCMError):
@@ -261,7 +261,7 @@ def test_push_refspec(tmp_dir, scm, make_tmp_dir, use_url):
 
 def test_fetch_refspecs(tmp_dir, scm, make_tmp_dir):
     remote_dir = make_tmp_dir("git-remote", scm=True)
-    url = "file://{}".format(remote_dir.resolve().as_posix())
+    url = f"file://{remote_dir.resolve().as_posix()}"
 
     remote_dir.scm_gen({"file": "0"}, commit="init")
     init_rev = remote_dir.scm.get_rev()
@@ -428,7 +428,7 @@ def test_resolve_rev(tmp_dir, scm, make_tmp_dir, git):
         pytest.skip()
 
     remote_dir = make_tmp_dir("git-remote", scm=True)
-    url = "file://{}".format(remote_dir.resolve().as_posix())
+    url = f"file://{remote_dir.resolve().as_posix()}"
     scm.gitpython.repo.create_remote("origin", url)
     scm.gitpython.repo.create_remote("upstream", url)
 

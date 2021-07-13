@@ -163,7 +163,7 @@ class Git(Base):
         if self.is_ignored(path):
             return
 
-        msg = "Adding '{}' to '{}'.".format(relpath(path), relpath(gitignore))
+        msg = f"Adding '{relpath(path)}' to '{relpath(gitignore)}'."
         logger.debug(msg)
 
         self._add_entry_to_gitignore(entry, gitignore)

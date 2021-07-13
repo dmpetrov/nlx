@@ -138,7 +138,7 @@ class Remote:
         indexed_hashes = set(self.index.intersection(hashes))
         hashes -= indexed_hashes
         indexed_hashes = list(indexed_hashes)
-        logger.debug("Matched '{}' indexed hashes".format(len(indexed_hashes)))
+        logger.debug(f"Matched '{len(indexed_hashes)}' indexed hashes")
         if not hashes:
             return indexed_hashes
 

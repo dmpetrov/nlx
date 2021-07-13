@@ -1,9 +1,9 @@
 import filecmp
 import os
 from unittest import TestCase
+from unittest.mock import patch
 
 import pytest
-from mock import patch
 
 import dvc
 from dvc.fs.local import LocalFileSystem

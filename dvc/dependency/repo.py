@@ -41,7 +41,7 @@ class RepoDependency(Dependency):
         return False
 
     def __str__(self):
-        return "{} ({})".format(self.def_path, self.def_repo[self.PARAM_URL])
+        return f"{self.def_path} ({self.def_repo[self.PARAM_URL]})"
 
     def workspace_status(self):
         current = self.get_obj(locked=True).hash_info

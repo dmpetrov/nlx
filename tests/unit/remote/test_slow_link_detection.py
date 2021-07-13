@@ -1,4 +1,5 @@
-import mock
+from unittest import mock
+
 import pytest
 
 import dvc.remote.slow_link_detection

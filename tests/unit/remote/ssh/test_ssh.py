@@ -1,9 +1,9 @@
 import getpass
 import os
 import sys
+from unittest.mock import mock_open, patch
 
 import pytest
-from mock import mock_open, patch
 
 from dvc.fs.ssh import SSHFileSystem
 from dvc.system import System

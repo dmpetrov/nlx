@@ -1,6 +1,5 @@
 import os
-
-import mock
+from unittest import mock
 
 from dvc.analytics import _scm_in_use
 from dvc.main import main

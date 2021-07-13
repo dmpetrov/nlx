@@ -116,7 +116,7 @@ def _get_monitor_tasks(stage, checkpoint_func, proc):
 
         result.append(CheckpointTask(stage, checkpoint_func, proc))
 
-    live = first((o for o in stage.outs if (o.live and o.live["html"])))
+    live = first(o for o in stage.outs if (o.live and o.live["html"]))
     if live:
         from .monitor import LiveTask
 

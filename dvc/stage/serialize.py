@@ -170,10 +170,10 @@ def to_single_stage_lockfile(stage: "Stage") -> dict:
 
     res = OrderedDict([("cmd", stage.cmd)])
     params, deps = split_params_deps(stage)
-    deps, outs = [
+    deps, outs = (
         [_dumpd(item) for item in sort_by_path(items)]
         for items in [deps, stage.outs]
-    ]
+    )
     params = _serialize_params_values(params)
     if deps:
         res[PARAM_DEPS] = deps

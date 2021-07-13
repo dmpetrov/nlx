@@ -67,9 +67,7 @@ def test_status_before_and_after_dvc_init(tmp_dir, dvc, git_dir):
 
     (status,) = dvc.status(["file.dvc"])["file.dvc"]
     assert status == {
-        "changed deps": {
-            "file ({})".format(os.fspath(git_dir)): "update available"
-        }
+        "changed deps": {f"file ({os.fspath(git_dir)})": "update available"}
     }
 
 

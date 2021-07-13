@@ -200,9 +200,7 @@ class SingleStageFile(FileMixin):
         assert not isinstance(stage, PipelineStage)
         if self.verify:
             check_dvcfile_path(self.repo, self.path)
-        logger.debug(
-            "Saving information to '{file}'.".format(file=relpath(self.path))
-        )
+        logger.debug(f"Saving information to '{relpath(self.path)}'.")
         dump_yaml(self.path, serialize.to_single_stage_file(stage))
         self.repo.scm.track_file(self.relpath)
 
@@ -300,7 +298,7 @@ class PipelineFile(FileMixin):
         if not self.exists():
             return
 
-        with open(self.path, "r", encoding="utf-8") as f:
+        with open(self.path, encoding="utf-8") as f:
             d = parse_yaml_for_update(f.read(), self.path)
 
         self.validate(d, self.path)

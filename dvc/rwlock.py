@@ -28,9 +28,7 @@ class RWLockFileCorruptedError(DvcException):
 
 class RWLockFileFormatError(DvcException):
     def __init__(self, path):
-        super().__init__(
-            "RWLock-file '{}' format error.".format(relpath(path))
-        )
+        super().__init__(f"RWLock-file '{relpath(path)}' format error.")
 
 
 @contextmanager

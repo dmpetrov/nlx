@@ -1,6 +1,6 @@
 import math
+from unittest import mock
 
-import mock
 import pytest
 
 from dvc.fs.base import BaseFileSystem, RemoteCmdError

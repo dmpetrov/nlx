@@ -82,7 +82,7 @@ def write(
 ):
     page_html = None
     if template_path:
-        with open(template_path, "r") as fobj:
+        with open(template_path) as fobj:
             page_html = fobj.read()
 
     document = HTML(page_html)

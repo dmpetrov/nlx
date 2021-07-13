@@ -3,9 +3,9 @@ import os
 import re
 import shutil
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
-from mock import patch
 
 from dvc.dvcfile import DVC_FILE, Dvcfile
 from dvc.exceptions import (

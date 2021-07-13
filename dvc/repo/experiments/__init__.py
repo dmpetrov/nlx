@@ -585,7 +585,7 @@ class Experiments:
 
         logger.debug(
             "Reproducing experiment revs '%s'",
-            ", ".join((rev[:7] for rev in to_run)),
+            ", ".join(rev[:7] for rev in to_run),
         )
 
         executors = self._init_executors(to_run)

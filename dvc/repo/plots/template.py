@@ -84,7 +84,7 @@ class Template:
 
     @classmethod
     def _anchor_str(cls, name):
-        return '"{}"'.format(cls.anchor(name))
+        return f'"{cls.anchor(name)}"'
 
     @classmethod
     def _fill_metadata(cls, content, props):

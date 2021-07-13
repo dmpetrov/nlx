@@ -1,4 +1,4 @@
-import mock
+from unittest import mock
 
 
 @mock.patch("dvc.repo.reproduce._reproduce_stage", returns=[])

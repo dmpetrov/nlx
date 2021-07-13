@@ -1,9 +1,9 @@
 import filecmp
 import os
+from unittest.mock import patch
 
 import pytest
 from funcy import first
-from mock import patch
 
 import dvc.data_cloud as cloud
 from dvc.config import NoRemoteError
@@ -407,9 +407,7 @@ def test_import_pipeline_tracked_outs(
     dvc.scm.commit("add pipeline stage")
 
     with erepo_dir.chdir():
-        erepo_dir.dvc.imp(
-            "file:///{}".format(os.fspath(tmp_dir)), "bar", out="baz"
-        )
+        erepo_dir.dvc.imp(f"file:///{os.fspath(tmp_dir)}", "bar", out="baz")
         assert (erepo_dir / "baz").read_text() == "foo"
 
 

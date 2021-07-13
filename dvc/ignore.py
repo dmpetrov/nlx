@@ -57,7 +57,7 @@ class DvcIgnorePatterns(DvcIgnore):
         dirname = os.path.normpath(os.path.dirname(path))
         with fs.open(path, encoding="utf-8") as fobj:
             path_spec_lines = [
-                PatternInfo(line, "{}:{}:{}".format(name, line_no + 1, line))
+                PatternInfo(line, f"{name}:{line_no + 1}:{line}")
                 for line_no, line in enumerate(
                     map(str.strip, fobj.readlines())
                 )
@@ -166,7 +166,7 @@ class DvcIgnoreFilter:
             ".hg/",
             ".git/",
             ".git",
-            "{}/".format(Repo.DVC_DIR),
+            f"{Repo.DVC_DIR}/",
         ]
 
         self.fs = fs

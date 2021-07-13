@@ -22,8 +22,8 @@ def test_check_ignore(tmp_dir, dvc, file, ret, output, caplog, capsys):
 @pytest.mark.parametrize(
     "file,ret,output",
     [
-        ("file", 0, "{}:1:f*\tfile\n".format(DvcIgnore.DVCIGNORE_FILE)),
-        ("foo", 0, "{}:2:!foo\tfoo\n".format(DvcIgnore.DVCIGNORE_FILE)),
+        ("file", 0, f"{DvcIgnore.DVCIGNORE_FILE}:1:f*\tfile\n"),
+        ("foo", 0, f"{DvcIgnore.DVCIGNORE_FILE}:2:!foo\tfoo\n"),
         (
             os.path.join("dir", "foobar"),
             0,
@@ -129,8 +129,8 @@ def test_check_ignore_details_all(tmp_dir, dvc, capsys):
 
     assert main(["check-ignore", "-d", "-a", "foo"]) == 0
     out, _ = capsys.readouterr()
-    assert "{}:1:f*\tfoo\n".format(DvcIgnore.DVCIGNORE_FILE) in out
-    assert "{}:2:!foo\tfoo\n".format(DvcIgnore.DVCIGNORE_FILE) in out
+    assert f"{DvcIgnore.DVCIGNORE_FILE}:1:f*\tfoo\n" in out
+    assert f"{DvcIgnore.DVCIGNORE_FILE}:2:!foo\tfoo\n" in out
 
 
 @pytest.mark.parametrize(

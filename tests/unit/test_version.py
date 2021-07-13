@@ -1,6 +1,5 @@
 import subprocess
-
-import mock
+from unittest import mock
 
 import dvc.version
 

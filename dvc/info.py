@@ -42,9 +42,7 @@ def get_dvc_info():
             # later decides to enable shared cache mode with
             # `dvc config cache.shared group`.
             if os.path.exists(repo.odb.local.cache_dir):
-                info.append(
-                    "Cache types: {}".format(_get_linktype_support_info(repo))
-                )
+                info.append(f"Cache types: {_get_linktype_support_info(repo)}")
                 fs_type = get_fs_type(repo.odb.local.cache_dir)
                 info.append(f"Cache directory: {fs_type}")
             else:
@@ -56,7 +54,7 @@ def get_dvc_info():
             root_directory = repo.root_dir
             fs_root = get_fs_type(os.path.abspath(root_directory))
             info.append(f"Workspace directory: {fs_root}")
-            info.append("Repo: {}".format(_get_dvc_repo_info(repo)))
+            info.append(f"Repo: {_get_dvc_repo_info(repo)}")
     except NotDvcRepoError:
         pass
     except SCMError:

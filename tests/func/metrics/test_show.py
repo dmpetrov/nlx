@@ -1,4 +1,5 @@
 import os
+import shutil
 
 import pytest
 
@@ -226,3 +227,26 @@ def test_metrics_show_overlap(
 
     with pytest.raises(OverlappingOutputPathsError):
         dvc.metrics.show()
+
+
+def test_skips_broken_commits(tmp_dir, scm, dvc):
+    dvc.run(
+        cmd="echo foo: 1.1 > metrics.yaml",
+        metrics=["metrics.yaml"],
+        name="test",
+    )
+    scm.add(["dvc.yaml", ".gitignore", "dvc.lock"])
+    scm.commit("initial")
+
+    shutil.copyfile("dvc.lock", "dvc.lock.bak")
+    tmp_dir.gen("dvc.lock", "<<<<< broken commit")
+    scm.add(["dvc.lock"])
+    scm.commit("accidental broken commit")
+
+    shutil.copyfile("dvc.lock.bak", "dvc.lock")
+    scm.add(["dvc.lock"])
+    scm.commit("revert breakage")
+
+    assert list(dvc.metrics.show(all_commits=True).values())[0] == {
+        "metrics.yaml": {"foo": 1.1}
+    }

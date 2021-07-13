@@ -1,6 +1,7 @@
 import logging
 from typing import List
 
+from dvc.dvcfile import LockfileCorruptedError
 from dvc.exceptions import (
     MetricDoesNotExistError,
     NoMetricsFoundError,
@@ -35,14 +36,22 @@ def _to_path_infos(metrics: List[Output]) -> List[PathInfo]:
 
 
 def _collect_metrics(repo, targets, revision, recursive):
-    metrics, path_infos = collect(
-        repo,
-        targets=targets,
-        output_filter=_is_metric,
-        recursive=recursive,
-        rev=revision,
-    )
-    return _to_path_infos(metrics) + list(path_infos)
+    try:
+        metrics, path_infos = collect(
+            repo,
+            targets=targets,
+            output_filter=_is_metric,
+            recursive=recursive,
+            rev=revision,
+        )
+
+        return _to_path_infos(metrics) + list(path_infos)
+
+    except LockfileCorruptedError:
+        logger.warning(
+            "Corrupt lockfile at revision %s. Ignoring in metrics.", revision
+        )
+        return []
 
 
 def _extract_metrics(metrics, path, rev):

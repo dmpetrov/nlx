@@ -122,6 +122,34 @@ class Repo:
 
         return root_dir, dvc_dir, tmp_dir
 
+    def _get_database_dir(self, db_name):
+        # NOTE: by default, store SQLite-based remote indexes and state's
+        # `links` and `md5s` caches in the repository itself to avoid any
+        # possible state corruption in 'shared cache dir' scenario, but allow
+        # user to override this through config when, say, the repository is
+        # located on a mounted volume — see
+        # https://github.com/iterative/dvc/issues/4420
+        base_db_dir = self.config.get(db_name, {}).get("dir", None)
+        if not base_db_dir:
+            return self.tmp_dir
+
+        import hashlib
+
+        from dvc.utils.fs import makedirs
+
+        root_dir_hash = hashlib.sha224(
+            self.root_dir.encode("utf-8")
+        ).hexdigest()
+
+        db_dir = os.path.join(
+            base_db_dir,
+            self.DVC_DIR,
+            f"{os.path.basename(self.root_dir)}-{root_dir_hash[0:7]}",
+        )
+
+        makedirs(db_dir, exist_ok=True)
+        return db_dir
+
     def __init__(
         self,
         root_dir=None,
@@ -184,10 +212,8 @@ class Repo:
                 friendly=True,
             )
 
-            # NOTE: storing state and link_state in the repository itself to
-            # avoid any possible state corruption in 'shared cache dir'
-            # scenario.
-            self.state = State(self.root_dir, self.tmp_dir, self.dvcignore)
+            state_db_dir = self._get_database_dir("state")
+            self.state = State(self.root_dir, state_db_dir, self.dvcignore)
             self.odb = ODBManager(self)
 
             self.stage_cache = StageCache(self)
@@ -487,6 +513,10 @@ class Repo:
         from dvc.fs.repo import RepoFileSystem
 
         return RepoFileSystem(self, subrepos=self.subrepos, **self._fs_conf)
+
+    @cached_property
+    def index_db_dir(self):
+        return self._get_database_dir("index")
 
     @contextmanager
     def open_by_relpath(self, path, remote=None, mode="r", encoding=None):

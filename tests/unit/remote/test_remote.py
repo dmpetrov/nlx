@@ -1,8 +1,11 @@
+import os
+
 import pytest
 
 from dvc.fs import get_cloud_fs
 from dvc.fs.gs import GSFileSystem
 from dvc.fs.s3 import S3FileSystem
+from dvc.remote import get_remote
 
 
 def test_remote_with_hash_jobs(dvc):
@@ -55,3 +58,15 @@ def test_makedirs_not_create_for_top_level_path(fs_cls, dvc, mocker):
 
     fs.makedirs(fs.PATH_CLS(url))
     assert not mocked_client.called
+
+
+def test_remote_index_dir_config(dvc):
+    index_dir = "/tmp"
+    with dvc.config.edit() as conf:
+        conf["index"]["dir"] = index_dir
+        conf["remote"]["s3"] = {"url": "s3://bucket/name"}
+
+    dvc.root_dir = "/usr/local/test_repo"
+    assert os.path.dirname(
+        get_remote(dvc, name="s3").index.path
+    ) == os.path.join(index_dir, ".dvc", "test_repo-a473718", "index")

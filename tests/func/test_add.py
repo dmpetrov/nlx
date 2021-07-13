@@ -1206,7 +1206,7 @@ def test_add_on_not_existing_file_should_not_remove_stage_file(tmp_dir, dvc):
 @pytest.mark.parametrize(
     "target",
     [
-        "dvc.repo.Repo.check_modified_graph",
+        "dvc.repo.index.Index.check_graph",
         "dvc.stage.Stage.save",
         "dvc.stage.Stage.commit",
     ],

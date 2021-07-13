@@ -65,3 +65,9 @@ def load(odb: "ObjectDB", hash_info: "HashInfo") -> "HashFile":
     if hash_info.isdir:
         return Tree.load(odb, hash_info)
     return odb.get(hash_info)
+
+
+def iterobjs(obj):
+    if isinstance(obj, Tree):
+        yield from (entry_obj for _, entry_obj in obj)
+    yield obj

@@ -982,6 +982,18 @@ class Output:
     def fspath(self):
         return self.path_info.fspath
 
+    @property
+    def is_decorated(self) -> bool:
+        return self.is_metric or self.is_plot
+
+    @property
+    def is_metric(self) -> bool:
+        return bool(self.metric) or bool(self.live)
+
+    @property
+    def is_plot(self) -> bool:
+        return bool(self.plot)
+
 
 ARTIFACT_SCHEMA = {
     **CHECKSUMS_SCHEMA,

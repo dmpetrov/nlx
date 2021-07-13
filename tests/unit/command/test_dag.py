@@ -115,19 +115,20 @@ def test_show_ascii(repo):
 
 
 def test_show_dot(repo):
-    assert _show_dot(repo.graph) == (
-        "strict digraph  {\n"
-        "stage;\n"
-        "stage;\n"
-        "stage;\n"
-        "stage;\n"
-        "stage;\n"
-        "stage;\n"
-        "\"stage: '1'\" -> \"stage: 'a.dvc'\";\n"
-        "\"stage: '2'\" -> \"stage: 'b.dvc'\";\n"
-        "\"stage: '3'\" -> \"stage: 'a.dvc'\";\n"
-        "\"stage: '3'\" -> \"stage: 'b.dvc'\";\n"
-        "\"stage: '4'\" -> \"stage: 'a.dvc'\";\n"
-        "\"stage: '4'\" -> \"stage: '3'\";\n"
-        "}\n"
-    )
+    # fix test assertion
+    assert set(_show_dot(repo.graph).splitlines()) == {
+        "strict digraph  {",
+        "stage;",
+        "stage;",
+        "stage;",
+        "stage;",
+        "stage;",
+        "stage;",
+        "\"stage: '1'\" -> \"stage: 'a.dvc'\";",
+        "\"stage: '2'\" -> \"stage: 'b.dvc'\";",
+        "\"stage: '3'\" -> \"stage: 'a.dvc'\";",
+        "\"stage: '3'\" -> \"stage: 'b.dvc'\";",
+        "\"stage: '4'\" -> \"stage: 'a.dvc'\";",
+        "\"stage: '4'\" -> \"stage: '3'\";",
+        "}",
+    }

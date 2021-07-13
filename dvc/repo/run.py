@@ -32,5 +32,8 @@ def run(
     else:
         stage.run(no_commit=no_commit, run_cache=run_cache)
 
+    new_index = self.index.add(stage)
+    new_index.check_graph()
+
     stage.dump(update_lock=not no_exec)
     return stage

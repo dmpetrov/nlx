@@ -2,7 +2,7 @@
 version: '3.2'
 services:
   azurite:
-    image: mcr.microsoft.com/azure-storage/azurite:3.10.0
+    image: mcr.microsoft.com/azure-storage/azurite:3.13.1
     command: azurite -L -l /data --blobHost 0.0.0.0 --queueHost 0.0.0.0
     ports:
       - "10000"

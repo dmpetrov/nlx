@@ -61,8 +61,8 @@ class Console:
         style: str = None,
         sep: str = None,
         end: str = None,
-        styled: bool = True,
         force: bool = True,
+        styled: bool = True,
     ) -> None:
         return self.write(
             *objects,

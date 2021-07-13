@@ -100,6 +100,9 @@ jobs:
         GDRIVE_CREDENTIALS_DATA: ${{ secrets.GDRIVE_CREDENTIALS_DATA }}
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        OSS_ACCESS_KEY_ID: ${{ secrets.OSS_ACCESS_KEY_ID}}
+        OSS_ACCESS_KEY_SECRET: ${{ secrets.OSS_ACCESS_KEY_SECRET}}
+        OSS_ENDPOINT: ${{ secrets.OSS_ENDPOINT}}
       run: >-
         python -m tests -n=4
         --cov-report=xml --cov-report=term

@@ -679,15 +679,52 @@ class Output:
     def download(self, to, jobs=None):
         self.fs.download(self.path_info, to.path_info, jobs=jobs)
 
-    def get_obj(self, filter_info=None, **kwargs):
+    def load_obj(self, **kwargs):
+        from .config import NoRemoteError
+        from .objects.stage import get_staging
+
         if self.obj:
-            obj = self.obj
-        elif self.hash_info:
-            try:
-                obj = objects.load(self.odb, self.hash_info)
-            except FileNotFoundError:
+            return self.obj
+
+        if not self.hash_info:
+            return None
+
+        # try to load from default odb
+        try:
+            self.obj = objects.load(self.odb, self.hash_info)
+            return self.obj
+        except FileNotFoundError:
+            if not self.hash_info.isdir:
                 return None
-        else:
+
+        # try to load Tree from staging
+        sodb = get_staging(self.odb)
+
+        try:
+            self.obj = objects.load(sodb, self.hash_info)
+            return self.obj
+        except FileNotFoundError:
+            pass
+
+        # try to load Tree from remote
+        try:
+            remote = self.repo.cloud.get_remote(name=kwargs.get("remote"))
+        except NoRemoteError:
+            return None
+
+        try:
+            self.obj = objects.load(remote.odb, self.hash_info)
+        except FileNotFoundError:
+            return None
+
+        # save Tree to staging
+        sodb.add(self.obj.path_info, self.obj.fs, self.obj.hash_info)
+
+        return self.obj
+
+    def get_obj(self, filter_info=None, **kwargs):
+        obj = self.obj or self.load_obj(**kwargs)
+        if not obj:
             return None
 
         if filter_info and filter_info != self.path_info:
@@ -817,36 +854,13 @@ class Output:
         if self.exists:
             self.odb.unprotect(self.path_info)
 
-    def get_dir_cache(self, **kwargs):
-        if not self.is_dir_checksum:
-            raise DvcException("cannot get dir cache for file checksum")
-
-        obj = self.odb.get(self.hash_info)
-        try:
-            objects.check(self.odb, obj)
-        except FileNotFoundError:
-            self.repo.cloud.pull([obj], show_checksums=False, **kwargs)
-
-        try:
-            self.obj = objects.load(self.odb, self.hash_info)
-        except (FileNotFoundError, ObjectFormatError):
-            self.obj = None
-
-        return self.obj
-
     def collect_used_dir_cache(
         self, remote=None, force=False, jobs=None, filter_info=None
     ) -> Dict[Optional["ObjectDB"], Set["HashFile"]]:
         """Fetch dir cache and return used objects for this out."""
 
-        try:
-            self.get_dir_cache(jobs=jobs, remote=remote)
-        except DvcException:
-            logger.debug(f"failed to pull cache for '{self}'")
-
-        try:
-            objects.check(self.odb, self.odb.get(self.hash_info))
-        except FileNotFoundError:
+        obj = self.get_obj(jobs=jobs, remote=remote)
+        if not obj:
             msg = (
                 "Missing cache for directory '{}'. "
                 "Cache for files inside will be lost. "
@@ -859,7 +873,6 @@ class Output:
                 )
             return {}
 
-        obj = self.get_obj()
         if filter_info and filter_info != self.path_info:
             prefix = filter_info.relative_to(self.path_info).parts
             obj = obj.filter(prefix)

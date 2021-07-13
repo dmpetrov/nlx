@@ -23,7 +23,7 @@ def test_params_order(tmp_dir, dvc):
         dvc.stage.add(params=[{params_path: ["p"]}], cmd="cmd2", name="stage2")
 
     # params are sorted during dumping, therefore p1 is first
-    assert list(dvc.params.show()[""]) == [
+    assert list(dvc.params.show()[""]["data"]) == [
         "params1.yaml",
         p2_path,
         "params.yaml",

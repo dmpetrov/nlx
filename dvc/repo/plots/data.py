@@ -1,13 +1,10 @@
-import csv
-import io
 import os
-from collections import OrderedDict
 from copy import copy
 
-from funcy import first, reraise
+from funcy import first
 
 from dvc.exceptions import DvcException
-from dvc.utils.serialize import ParseError, parse_json, parse_yaml
+from dvc.utils.serialize import ParseError
 
 
 class PlotMetricTypeError(DvcException):
@@ -31,7 +28,7 @@ class PlotParsingError(ParseError):
         self.path = path
         self.revision = revision
 
-        super().__init__(path, f"revision: {revision}")
+        super().__init__(path, f"revision: '{revision}'")
 
 
 def plot_data(filename, revision, content):
@@ -148,18 +145,11 @@ class PlotData:
         self.revision = revision
         self.content = content
 
-    def raw(self, **kwargs):
-        raise NotImplementedError
-
     def _processors(self):
         return [_filter_fields, _append_index, _append_revision]
 
     def to_datapoints(self, **kwargs):
-        with reraise(
-            [ParseError, csv.Error],
-            PlotParsingError(self.filename, self.revision),
-        ):
-            data = self.raw(**kwargs)
+        data = self.content
 
         for data_proc in self._processors():
             data = data_proc(
@@ -169,48 +159,16 @@ class PlotData:
 
 
 class JSONPlotData(PlotData):
-    def raw(self, **kwargs):
-        return parse_json(
-            self.content, self.filename, object_pairs_hook=OrderedDict
-        )
-
     def _processors(self):
         parent_processors = super()._processors()
         return [_apply_path, _find_data] + parent_processors
 
 
 class CSVPlotData(PlotData):
-    def __init__(self, filename, revision, content, delimiter=","):
-        super().__init__(filename, revision, content)
-        self.delimiter = delimiter
-
-    def raw(self, header=True, **kwargs):  # pylint: disable=arguments-differ
-        first_row = first(csv.reader(io.StringIO(self.content)))
-
-        if header:
-            reader = csv.DictReader(
-                io.StringIO(self.content), delimiter=self.delimiter
-            )
-        else:
-            reader = csv.DictReader(
-                io.StringIO(self.content),
-                delimiter=self.delimiter,
-                fieldnames=[str(i) for i in range(len(first_row))],
-            )
-
-        fieldnames = reader.fieldnames
-        data = list(reader)
-
-        return [
-            OrderedDict([(field, data_point[field]) for field in fieldnames])
-            for data_point in data
-        ]
+    pass
 
 
 class YAMLPlotData(PlotData):
-    def raw(self, **kwargs):
-        return parse_yaml(self.content, self.filename, typ="rt")
-
     def _processors(self):
         parent_processors = super()._processors()
         return [_find_data] + parent_processors

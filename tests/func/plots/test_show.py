@@ -1,17 +1,15 @@
 import json
 import logging
+import operator
 import os
 import shutil
 from collections import OrderedDict
+from functools import reduce
 
 import pytest
 
-from dvc.exceptions import (
-    MetricDoesNotExistError,
-    NoMetricsFoundError,
-    NoMetricsParsedError,
-    OverlappingOutputPathsError,
-)
+from dvc.dvcfile import PIPELINE_FILE
+from dvc.exceptions import OverlappingOutputPathsError
 from dvc.main import main
 from dvc.path_info import PathInfo
 from dvc.repo import Repo
@@ -26,8 +24,14 @@ from dvc.repo.plots.template import (
     NoFieldInDataError,
     TemplateNotFoundError,
 )
+from dvc.utils import onerror_collect
 from dvc.utils.fs import remove
-from dvc.utils.serialize import dump_yaml, dumps_yaml, modify_yaml
+from dvc.utils.serialize import (
+    EncodingError,
+    YAMLFileCorruptedError,
+    dump_yaml,
+    modify_yaml,
+)
 from tests.func.plots.utils import _write_csv, _write_json
 
 
@@ -190,7 +194,8 @@ def test_plot_confusion(tmp_dir, dvc, run_copy_metrics):
     )
 
     props = {"template": "confusion", "x": "predicted", "y": "actual"}
-    plot_string = dvc.plots.show(props=props)["metric.json"]
+    show = dvc.plots.show(props=props)
+    plot_string = show["metric.json"]
 
     plot_content = json.loads(plot_string)
     assert plot_content["data"]["values"] == [
@@ -395,24 +400,6 @@ def test_plot_cache_missing(tmp_dir, scm, dvc, caplog, run_copy_metrics):
     ]
 
 
-def test_throw_on_no_metric_at_all(tmp_dir, scm, dvc, caplog):
-    tmp_dir.scm_gen("some_file", "content", commit="there is no metric")
-    scm.tag("v1")
-
-    tmp_dir.gen("some_file", "make repo dirty")
-
-    caplog.clear()
-    with pytest.raises(MetricDoesNotExistError) as error, caplog.at_level(
-        logging.WARNING, "dvc"
-    ):
-        dvc.plots.show(targets="plot.json", revs=["v1"])
-
-        # do not warn if none found
-        assert len(caplog.messages) == 0
-
-    assert str(error.value) == "'plot.json' does not exist."
-
-
 def test_custom_template(tmp_dir, scm, dvc, custom_template, run_copy_metrics):
     metric = [{"a": 1, "b": 2}, {"a": 2, "b": 3}]
     _write_json(tmp_dir, metric, "metric_t.json")
@@ -481,8 +468,12 @@ def test_plot_wrong_metric_type(tmp_dir, scm, dvc, run_copy_metrics):
         commit="add text metric",
     )
 
-    with pytest.raises(PlotMetricTypeError):
-        dvc.plots.show(targets=["metric.txt"])
+    assert isinstance(
+        dvc.plots.collect(targets=["metric.txt"], onerror=onerror_collect)[
+            "workspace"
+        ]["data"]["metric.txt"]["error"],
+        PlotMetricTypeError,
+    )
 
 
 def test_plot_choose_columns(
@@ -570,24 +561,12 @@ def test_raise_on_wrong_field(tmp_dir, scm, dvc, run_copy_metrics):
         dvc.plots.show("metric.json", props={"y": "no_val"})
 
 
-def test_load_metric_from_dict_json(tmp_dir):
+@pytest.mark.parametrize("data_class", [JSONPlotData, YAMLPlotData])
+def test_find_data_in_dict(tmp_dir, data_class):
     metric = [{"accuracy": 1, "loss": 2}, {"accuracy": 3, "loss": 4}]
     dmetric = {"train": metric}
 
-    plot_data = JSONPlotData("-", "revision", json.dumps(dmetric))
-
-    expected = metric
-    for d in expected:
-        d["rev"] = "revision"
-
-    assert list(map(dict, plot_data.to_datapoints())) == expected
-
-
-def test_load_metric_from_dict_yaml(tmp_dir):
-    metric = [{"accuracy": 1, "loss": 2}, {"accuracy": 3, "loss": 4}]
-    dmetric = {"train": metric}
-
-    plot_data = YAMLPlotData("-", "revision", dumps_yaml(dmetric))
+    plot_data = data_class("-", "revision", dmetric)
 
     expected = metric
     for d in expected:
@@ -699,20 +678,22 @@ def test_show_from_subdir(tmp_dir, dvc, capsys):
 
 
 def test_show_malformed_plots(tmp_dir, scm, dvc, caplog):
+    tmp_dir.gen("plot.json", '[{"m":1}]')
+    scm.add(["plot.json"])
+    scm.commit("initial")
+
     tmp_dir.gen("plot.json", '[{"m":1]')
 
-    with pytest.raises(NoMetricsParsedError):
-        dvc.plots.show(targets=["plot.json"])
+    result = dvc.plots.show(targets=["plot.json"], revs=["workspace", "HEAD"])
+    plot_content = json.loads(result["plot.json"])
+
+    assert plot_content["data"]["values"] == [
+        {"m": 1, "rev": "HEAD", "step": 0}
+    ]
 
 
-def test_plots_show_no_target(tmp_dir, dvc):
-    with pytest.raises(MetricDoesNotExistError):
-        dvc.plots.show(targets=["plot.json"])
-
-
-def test_show_no_plots_files(tmp_dir, dvc, caplog):
-    with pytest.raises(NoMetricsFoundError):
-        dvc.plots.show()
+def test_plots_show_non_existing(tmp_dir, dvc):
+    assert dvc.plots.show(targets=["plot.json"]) == {}
 
 
 @pytest.mark.parametrize("clear_before_run", [True, False])
@@ -744,8 +725,10 @@ def test_plots_show_overlap(tmp_dir, dvc, run_copy_metrics, clear_before_run):
 
     dvc._reset()
 
-    with pytest.raises(OverlappingOutputPathsError):
-        dvc.plots.show()
+    assert isinstance(
+        dvc.plots.collect(onerror=onerror_collect)["workspace"]["error"],
+        OverlappingOutputPathsError,
+    )
 
 
 def test_dir_plots(tmp_dir, dvc, run_copy_metrics):
@@ -810,15 +793,53 @@ def test_show_dir_plots(tmp_dir, dvc, run_copy_metrics):
 
     remove(dvc.odb.local.cache_dir)
     remove(subdir)
-    with pytest.raises(NoMetricsParsedError):
-        dvc.plots.show()
+
+    assert dvc.plots.show() == {}
 
 
 def test_ignore_binary_file(tmp_dir, dvc, run_copy_metrics):
     with open("file", "wb") as fobj:
         fobj.write(b"\xc1")
 
-    run_copy_metrics("file", "plot_file", plots=["plot_file"])
+    run_copy_metrics("file", "plot_file.json", plots=["plot_file.json"])
+    result = dvc.plots.collect(onerror=onerror_collect)
 
-    with pytest.raises(NoMetricsParsedError):
-        dvc.plots.show()
+    assert isinstance(
+        result["workspace"]["data"]["plot_file.json"]["error"], EncodingError
+    )
+
+
+@pytest.mark.parametrize(
+    "file,error_path",
+    (
+        (PIPELINE_FILE, ["workspace", "error"]),
+        ("plot.yaml", ["workspace", "data", "plot.yaml", "error"]),
+    ),
+)
+def test_log_errors(
+    tmp_dir, scm, dvc, run_copy_metrics, file, error_path, capsys
+):
+    metric = [{"val": 2}, {"val": 3}]
+    dump_yaml("metric_t.yaml", metric)
+    run_copy_metrics(
+        "metric_t.yaml",
+        "plot.yaml",
+        plots=["plot.yaml"],
+        single_stage=False,
+        name="train",
+    )
+    scm.tag("v1")
+
+    with open(file, "a") as fd:
+        fd.write("\nMALFORMED!")
+
+    result = dvc.plots.collect(onerror=onerror_collect)
+    _, error = capsys.readouterr()
+
+    assert isinstance(
+        reduce(operator.getitem, error_path, result), YAMLFileCorruptedError
+    )
+    assert (
+        "DVC failed to load some plots for following revisions: 'workspace'."
+        in error
+    )

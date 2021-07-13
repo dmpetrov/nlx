@@ -134,3 +134,14 @@ def validate(*validators: Callable, post: bool = False):
         return inner
 
     return wrapped
+
+
+def nested_contains(dictionary: Dict, phrase: str) -> bool:
+    for key, val in dictionary.items():
+        if key == phrase and val:
+            return True
+
+        if isinstance(val, dict):
+            if nested_contains(val, phrase):
+                return True
+    return False

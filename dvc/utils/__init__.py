@@ -9,7 +9,7 @@ import re
 import stat
 import sys
 import time
-from typing import Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import colorama
 
@@ -480,3 +480,35 @@ def glob_targets(targets, glob=True, recursive=True):
         for target in targets
         for exp_target in iglob(target, recursive=recursive)
     ]
+
+
+def error_handler(func):
+    def wrapper(*args, **kwargs):
+        onerror = kwargs.get("onerror", None)
+        result = {}
+
+        try:
+            vals = func(*args, **kwargs)
+            if vals:
+                result["data"] = vals
+        except Exception as e:  # pylint: disable=broad-except
+            if onerror is not None:
+                onerror(result, e, **kwargs)
+        return result
+
+    return wrapper
+
+
+def onerror_collect(result: Dict, exception: Exception, *args, **kwargs):
+    logger.debug("", exc_info=True)
+    result["error"] = exception
+
+
+def errored_revisions(rev_data: Dict) -> List:
+    from dvc.utils.collections import nested_contains
+
+    result = []
+    for revision, data in rev_data.items():
+        if nested_contains(data, "error"):
+            result.append(revision)
+    return result

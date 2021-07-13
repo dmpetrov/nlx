@@ -16,6 +16,7 @@ from dvc.command.repro import add_arguments as add_repro_arguments
 from dvc.exceptions import DvcException, InvalidArgumentError
 from dvc.ui import ui
 from dvc.utils.flatten import flatten
+from dvc.utils.serialize import encode_exception
 
 if TYPE_CHECKING:
     from rich.text import Text
@@ -28,6 +29,7 @@ logger = logging.getLogger(__name__)
 
 SHOW_MAX_WIDTH = 1024
 FILL_VALUE = "-"
+FILL_VALUE_ERRORED = "!"
 
 
 def _filter_name(names, label, filter_strs):
@@ -90,6 +92,7 @@ def _filter_names(
 
 def _update_names(names, items):
     for name, item in items:
+        item = item.get("data", {})
         if isinstance(item, dict):
             item = flatten(item)
             names[name].update({key: None for key in item})
@@ -100,7 +103,8 @@ def _collect_names(all_experiments, **kwargs):
     param_names = defaultdict(dict)
 
     for _, experiments in all_experiments.items():
-        for exp in experiments.values():
+        for exp_data in experiments.values():
+            exp = exp_data.get("data", {})
             _update_names(metric_names, exp.get("metrics", {}).items())
             _update_names(param_names, exp.get("params", {}).items())
     metric_names = _filter_names(
@@ -150,7 +154,8 @@ def _collect_rows(
         )
 
     new_checkpoint = True
-    for i, (rev, exp) in enumerate(experiments.items()):
+    for i, (rev, results) in enumerate(experiments.items()):
+        exp = results.get("data", {})
         if exp.get("running"):
             state = "Running"
         elif exp.get("queued"):
@@ -169,7 +174,7 @@ def _collect_rows(
         tip = exp.get("checkpoint_tip")
 
         parent_rev = exp.get("checkpoint_parent", "")
-        parent_exp = experiments.get(parent_rev, {})
+        parent_exp = experiments.get(parent_rev, {}).get("data", {})
         parent_tip = parent_exp.get("checkpoint_tip")
 
         parent = ""
@@ -202,10 +207,21 @@ def _collect_rows(
             state,
             executor,
         ]
+        fill_value = FILL_VALUE_ERRORED if results.get("error") else FILL_VALUE
         _extend_row(
-            row, metric_names, exp.get("metrics", {}).items(), precision
+            row,
+            metric_names,
+            exp.get("metrics", {}).items(),
+            precision,
+            fill_value=fill_value,
         )
-        _extend_row(row, param_names, exp.get("params", {}).items(), precision)
+        _extend_row(
+            row,
+            param_names,
+            exp.get("params", {}).items(),
+            precision,
+            fill_value=fill_value,
+        )
 
         yield row
 
@@ -268,19 +284,23 @@ def _format_time(timestamp):
     return timestamp.strftime(fmt)
 
 
-def _extend_row(row, names, items, precision):
+def _extend_row(row, names, items, precision, fill_value=FILL_VALUE):
     from rich.text import Text
 
     from dvc.compare import _format_field, with_value
 
     if not items:
-        row.extend(FILL_VALUE for keys in names.values() for _ in keys)
+        row.extend(fill_value for keys in names.values() for _ in keys)
         return
 
-    for fname, item in items:
+    for fname, data in items:
+        item = data.get("data", {})
         item = flatten(item) if isinstance(item, dict) else {fname: item}
         for name in names[fname]:
-            value = with_value(item.get(name), FILL_VALUE)
+            value = with_value(
+                item.get(name),
+                FILL_VALUE_ERRORED if data.get("error", None) else fill_value,
+            )
             # wrap field data in rich.Text, otherwise rich may
             # interpret unescaped braces from list/dict types as rich
             # markup tags
@@ -450,7 +470,7 @@ def _normalize_headers(names):
 def _format_json(item):
     if isinstance(item, (date, datetime)):
         return item.isoformat()
-    raise TypeError
+    return encode_exception(item)
 
 
 class CmdExperimentsShow(CmdBase):

@@ -1,19 +1,14 @@
 import logging
 from typing import List
 
-from dvc.exceptions import (
-    MetricDoesNotExistError,
-    NoMetricsFoundError,
-    NoMetricsParsedError,
-)
 from dvc.fs.repo import RepoFileSystem
 from dvc.output import Output
-from dvc.path_info import PathInfo
 from dvc.repo import locked
-from dvc.repo.collect import collect
+from dvc.repo.collect import DvcPaths, collect
 from dvc.repo.live import summary_path_info
 from dvc.scm.base import SCMError
-from dvc.utils.serialize import YAMLFileCorruptedError, load_yaml
+from dvc.utils import error_handler, errored_revisions, onerror_collect
+from dvc.utils.serialize import load_yaml
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +17,7 @@ def _is_metric(out: Output) -> bool:
     return bool(out.metric) or bool(out.live)
 
 
-def _to_path_infos(metrics: List[Output]) -> List[PathInfo]:
+def _to_path_infos(metrics: List[Output]) -> DvcPaths:
     result = []
     for out in metrics:
         if out.metric:
@@ -70,27 +65,30 @@ def _extract_metrics(metrics, path, rev):
     return ret
 
 
-def _read_metrics(repo, metrics, rev):
+@error_handler
+def _read_metric(path, fs, rev, **kwargs):
+    val = load_yaml(path, fs=fs)
+    val = _extract_metrics(val, path, rev)
+    return val or {}
+
+
+def _read_metrics(repo, metrics, rev, onerror=None):
     fs = RepoFileSystem(repo)
 
     res = {}
     for metric in metrics:
+        # TODO do we need that?
         if not fs.isfile(metric):
             continue
 
-        try:
-            val = load_yaml(metric, fs=fs)
-        except (FileNotFoundError, YAMLFileCorruptedError):
-            logger.debug(
-                "failed to read '%s' on '%s'", metric, rev, exc_info=True
-            )
-            continue
-
-        val = _extract_metrics(val, metric, rev)
-        if val not in (None, {}):
-            res[str(metric)] = val
+        res[str(metric)] = _read_metric(metric, fs, rev, onerror=onerror)
 
     return res
+
+
+def _gather_metrics(repo, targets, rev, recursive, onerror=None):
+    metrics = _collect_metrics(repo, targets, rev, recursive)
+    return _read_metrics(repo, metrics, rev, onerror=onerror)
 
 
 @locked
@@ -102,33 +100,21 @@ def show(
     recursive=False,
     revs=None,
     all_commits=False,
+    onerror=None,
 ):
-    res = {}
-    metrics_found = False
+    if onerror is None:
+        onerror = onerror_collect
 
+    res = {}
     for rev in repo.brancher(
         revs=revs,
         all_branches=all_branches,
         all_tags=all_tags,
         all_commits=all_commits,
     ):
-        metrics = _collect_metrics(repo, targets, rev, recursive)
-
-        if not metrics_found and metrics:
-            metrics_found = True
-
-        vals = _read_metrics(repo, metrics, rev)
-
-        if vals:
-            res[rev] = vals
-
-    if not res:
-        if metrics_found:
-            raise NoMetricsParsedError("metrics")
-        elif targets:
-            raise MetricDoesNotExistError(targets)
-        else:
-            raise NoMetricsFoundError("metrics", "-m/-M")
+        res[rev] = error_handler(_gather_metrics)(
+            repo, targets, rev, recursive, onerror=onerror
+        )
 
     # Hide workspace metrics if they are the same as in the active branch
     try:
@@ -140,5 +126,14 @@ def show(
     else:
         if res.get("workspace") == res.get(active_branch):
             res.pop("workspace", None)
+
+    errored = errored_revisions(res)
+    if errored:
+        from dvc.ui import ui
+
+        ui.error_write(
+            "DVC failed to load some metrics for following revisions:"
+            f" '{', '.join(errored)}'."
+        )
 
     return res

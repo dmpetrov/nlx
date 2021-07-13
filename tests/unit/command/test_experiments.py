@@ -75,8 +75,8 @@ def test_experiments_show(dvc, scm, mocker):
     assert cli_args.func == CmdExperimentsShow
 
     cmd = cli_args.func(cli_args)
-    m = mocker.patch("dvc.repo.experiments.show.show", return_value={})
 
+    m = mocker.patch("dvc.repo.experiments.show.show", return_value={})
     assert cmd.run() == 0
 
     m.assert_called_once_with(

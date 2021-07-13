@@ -46,15 +46,12 @@ def _collect_paths(
             target_infos.extend(repo.dvcignore.walk_files(fs, path_info))
 
         if not fs.exists(path_info):
-            if not recursive:
-                if rev == "workspace" or rev == "":
-                    logger.warning(
-                        "'%s' was not found in current workspace.", path_info
-                    )
-                else:
-                    logger.warning(
-                        "'%s' was not found at: '%s'.", path_info, rev
-                    )
+            if rev == "workspace" or rev == "":
+                logger.warning(
+                    "'%s' was not found in current workspace.", path_info
+                )
+            else:
+                logger.warning("'%s' was not found at: '%s'.", path_info, rev)
             continue
         target_infos.append(path_info)
     return target_infos

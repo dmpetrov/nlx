@@ -1,17 +1,22 @@
+import csv
+import io
 import logging
 import os
-from typing import TYPE_CHECKING, Dict, List, Optional
+from collections import OrderedDict
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional
 
 from funcy import cached_property, first, project
 
-from dvc.exceptions import (
-    DvcException,
-    MetricDoesNotExistError,
-    NoMetricsFoundError,
-    NoMetricsParsedError,
-)
+from dvc.exceptions import DvcException
+from dvc.repo.plots.data import PlotMetricTypeError
 from dvc.types import StrPath
-from dvc.utils import relpath
+from dvc.utils import (
+    error_handler,
+    errored_revisions,
+    onerror_collect,
+    relpath,
+)
+from dvc.utils.serialize import LOADERS
 
 if TYPE_CHECKING:
     from dvc.output import Output
@@ -41,18 +46,17 @@ class Plots:
         targets: List[str] = None,
         revs: List[str] = None,
         recursive: bool = False,
+        onerror: Optional[Callable] = None,
+        props: Optional[Dict] = None,
     ) -> Dict[str, Dict]:
         """Collects all props and data for plots.
 
         Returns a structure like:
             {rev: {plots.csv: {
                 props: {x: ..., "header": ..., ...},
-                data: "...data as a string...",
+                data: "unstructured data (as stored for given extension)",
             }}}
-        Data parsing is postponed, since it's affected by props.
         """
-        from dvc.config import NoRemoteError
-        from dvc.fs.repo import RepoFileSystem
         from dvc.utils.collections import ensure_list
 
         targets = ensure_list(targets)
@@ -62,70 +66,68 @@ class Plots:
             if revs is not None and rev not in revs:
                 continue
             rev = rev or "workspace"
+            data[rev] = self._collect_from_revision(
+                revision=rev,
+                targets=targets,
+                recursive=recursive,
+                onerror=onerror,
+                props=props,
+            )
 
-            fs = RepoFileSystem(self.repo)
-            plots = _collect_plots(self.repo, targets, rev, recursive)
-            for path_info, props in plots.items():
+        errored = errored_revisions(data)
+        if errored:
+            from dvc.ui import ui
 
-                if rev not in data:
-                    data[rev] = {}
-
-                if fs.isdir(path_info):
-                    plot_files = []
-                    try:
-                        for pi in fs.walk_files(path_info):
-                            plot_files.append(
-                                (pi, relpath(pi, self.repo.root_dir))
-                            )
-                    except NoRemoteError:
-                        logger.debug(
-                            (
-                                "Could not find cache for directory '%s' on "
-                                "'%s'. Files inside will not be plotted."
-                            ),
-                            path_info,
-                            rev,
-                        )
-                        continue
-                else:
-                    plot_files = [
-                        (path_info, relpath(path_info, self.repo.root_dir))
-                    ]
-
-                for path, repo_path in plot_files:
-                    data[rev].update({repo_path: {"props": props}})
-
-                    # Load data from git or dvc cache
-                    try:
-                        with fs.open(path) as fd:
-                            data[rev][repo_path]["data"] = fd.read()
-                    except FileNotFoundError:
-                        # This might happen simply because cache is absent
-                        logger.debug(
-                            (
-                                "Could not find '%s' on '%s'. "
-                                "File will not be plotted"
-                            ),
-                            path,
-                            rev,
-                        )
-                    except UnicodeDecodeError:
-                        logger.debug(
-                            (
-                                "'%s' at '%s' is binary file. It will not be "
-                                "plotted."
-                            ),
-                            path,
-                            rev,
-                        )
+            ui.error_write(
+                "DVC failed to load some plots for following revisions: "
+                f"'{', '.join(errored)}'."
+            )
 
         return data
+
+    @error_handler
+    def _collect_from_revision(
+        self,
+        targets: Optional[List[str]] = None,
+        revision: Optional[str] = None,
+        recursive: bool = False,
+        onerror: Optional[Callable] = None,
+        props: Optional[Dict] = None,
+    ):
+        from dvc.fs.repo import RepoFileSystem
+
+        fs = RepoFileSystem(self.repo)
+        plots = _collect_plots(self.repo, targets, revision, recursive)
+        res = {}
+        for path_info, rev_props in plots.items():
+
+            if fs.isdir(path_info):
+                plot_files = []
+                for pi in fs.walk_files(path_info):
+                    plot_files.append((pi, relpath(pi, self.repo.root_dir)))
+            else:
+                plot_files = [
+                    (path_info, relpath(path_info, self.repo.root_dir))
+                ]
+
+            props = props or {}
+
+            for path, repo_path in plot_files:
+                res[repo_path] = {"props": rev_props}
+                res[repo_path].update(
+                    parse(
+                        fs,
+                        path,
+                        rev_props=rev_props,
+                        props=props,
+                        onerror=onerror,
+                    )
+                )
+        return res
 
     @staticmethod
     def render(data, revs=None, props=None, templates=None):
         """Renders plots"""
-        from dvc.repo.plots.data import PlotParsingError
-
         props = props or {}
 
         # Merge data by plot file and apply overriding props
@@ -133,20 +135,14 @@ class Plots:
 
         result = {}
         for datafile, desc in plots.items():
-            try:
-                result[datafile] = _render(
-                    datafile, desc["data"], desc["props"], templates
-                )
-            except PlotParsingError as e:
-                logger.debug(
-                    "failed to read '%s' on '%s'",
-                    e.path,
-                    e.revision,
-                    exc_info=True,
-                )
-
-        if not any(result.values()):
-            raise NoMetricsParsedError("plots")
+            rendered = _render(
+                datafile,
+                desc["data"],
+                desc["props"],
+                templates,
+            )
+            if rendered:
+                result[datafile] = rendered
 
         return result
 
@@ -157,25 +153,13 @@ class Plots:
         props=None,
         templates=None,
         recursive=False,
+        onerror=None,
     ):
-        from dvc.utils.collections import ensure_list
-
-        data = self.collect(targets, revs, recursive)
-
-        # If any mentioned plot doesn't have any data then that's an error
-        for target in ensure_list(targets):
-            rpath = relpath(target, self.repo.root_dir)
-            if not any(
-                "data" in rev_data[key]
-                for rev_data in data.values()
-                for key, d in rev_data.items()
-                if rpath in key
-            ):
-                raise MetricDoesNotExistError([target])
-
-        # No data at all is a special error with a special message
-        if not data:
-            raise NoMetricsFoundError("plots", "--plots/--plots-no-cache")
+        if onerror is None:
+            onerror = onerror_collect
+        data = self.collect(
+            targets, revs, recursive, onerror=onerror, props=props
+        )
 
         if templates is None:
             templates = self.templates
@@ -273,9 +257,25 @@ def _collect_plots(
         rev=rev,
         recursive=recursive,
     )
+
     result = {plot.path_info: _plot_props(plot) for plot in plots}
     result.update({path_info: {} for path_info in path_infos})
     return result
+
+
+@error_handler
+def parse(fs, path, props=None, rev_props=None, **kwargs):
+    props = props or {}
+    rev_props = rev_props or {}
+    _, extension = os.path.splitext(path)
+    if extension in (".tsv", ".csv"):
+        header = {**rev_props, **props}.get("header", True)
+        if extension == ".csv":
+            return _load_sv(path=path, fs=fs, delimiter=",", header=header)
+        return _load_sv(path=path, fs=fs, delimiter="\t", header=header)
+    if extension in LOADERS or extension in (".yml", ".yaml"):
+        return LOADERS[extension](path=path, fs=fs)
+    raise PlotMetricTypeError(path)
 
 
 def _plot_props(out: "Output") -> Dict:
@@ -305,7 +305,7 @@ def _prepare_plots(data, revs, props):
         if rev not in data:
             continue
 
-        for datafile, desc in data[rev].items():
+        for datafile, desc in data[rev].get("data", {}).items():
             # We silently skip on an absent data file,
             # see also try/except/pass in .collect()
             if "data" not in desc:
@@ -355,19 +355,44 @@ def _render(datafile, datas, props, templates):
 
     # Parse all data, preprocess it and collect as a list of dicts
     data = []
-    for rev, datablob in datas.items():
-        rev_data = plot_data(datafile, rev, datablob).to_datapoints(
+    for rev, unstructured_data in datas.items():
+        rev_data = plot_data(datafile, rev, unstructured_data).to_datapoints(
             fields=fields,
             path=props.get("path"),
-            header=props.get("header", True),
             append_index=props.get("append_index", False),
         )
         data.extend(rev_data)
 
     # If y is not set then use last field not used yet
-    if not props.get("y") and template.has_anchor("y"):
-        fields = list(first(data))
-        skip = (PlotData.REVISION_FIELD, props.get("x"))
-        props["y"] = first(f for f in reversed(fields) if f not in skip)
+    if data:
+        if not props.get("y") and template.has_anchor("y"):
+            fields = list(first(data))
+            skip = (PlotData.REVISION_FIELD, props.get("x"))
+            props["y"] = first(f for f in reversed(fields) if f not in skip)
 
-    return template.render(data, props=props)
+        return template.render(data, props=props)
+    return None
+
+
+def _load_sv(path, fs, delimiter=",", header=True):
+    with fs.open(path, "r") as fd:
+        content = fd.read()
+
+    first_row = first(csv.reader(io.StringIO(content)))
+
+    if header:
+        reader = csv.DictReader(io.StringIO(content), delimiter=delimiter)
+    else:
+        reader = csv.DictReader(
+            io.StringIO(content),
+            delimiter=delimiter,
+            fieldnames=[str(i) for i in range(len(first_row))],
+        )
+
+    fieldnames = reader.fieldnames
+    data = list(reader)
+
+    return [
+        OrderedDict([(field, data_point[field]) for field in fieldnames])
+        for data_point in data
+    ]

@@ -266,7 +266,15 @@ def test_metrics_diff_md(capsys):
 
 def test_metrics_show_with_valid_falsey_values():
     td = metrics_table(
-        {"branch_1": {"metrics.json": {"a": 0, "b": {"ad": 0.0, "bc": 0.0}}}},
+        {
+            "branch_1": {
+                "data": {
+                    "metrics.json": {
+                        "data": {"a": 0, "b": {"ad": 0.0, "bc": 0.0}}
+                    }
+                }
+            }
+        },
         all_branches=True,
     )
     assert td.as_dict() == [
@@ -282,7 +290,15 @@ def test_metrics_show_with_valid_falsey_values():
 
 def test_metrics_show_with_no_revision():
     td = metrics_table(
-        {"branch_1": {"metrics.json": {"a": 0, "b": {"ad": 0.0, "bc": 0.0}}}},
+        {
+            "branch_1": {
+                "data": {
+                    "metrics.json": {
+                        "data": {"a": 0, "b": {"ad": 0.0, "bc": 0.0}}
+                    }
+                }
+            }
+        },
         all_branches=False,
     )
     assert td.as_dict() == [
@@ -291,7 +307,10 @@ def test_metrics_show_with_no_revision():
 
 
 def test_metrics_show_with_non_dict_values():
-    td = metrics_table({"branch_1": {"metrics.json": 1}}, all_branches=True)
+    td = metrics_table(
+        {"branch_1": {"data": {"metrics.json": {"data": 1}}}},
+        all_branches=True,
+    )
     assert td.as_dict() == [
         {"Revision": "branch_1", "Path": "metrics.json", "": "1"}
     ]
@@ -300,8 +319,16 @@ def test_metrics_show_with_non_dict_values():
 def test_metrics_show_with_multiple_revision():
     td = metrics_table(
         {
-            "branch_1": {"metrics.json": {"a": 1, "b": {"ad": 1, "bc": 2}}},
-            "branch_2": {"metrics.json": {"a": 1, "b": {"ad": 3, "bc": 4}}},
+            "branch_1": {
+                "data": {
+                    "metrics.json": {"data": {"a": 1, "b": {"ad": 1, "bc": 2}}}
+                }
+            },
+            "branch_2": {
+                "data": {
+                    "metrics.json": {"data": {"a": 1, "b": {"ad": 3, "bc": 4}}}
+                }
+            },
         },
         all_branches=True,
     )
@@ -327,8 +354,14 @@ def test_metrics_show_with_one_revision_multiple_paths():
     td = metrics_table(
         {
             "branch_1": {
-                "metrics.json": {"a": 1, "b": {"ad": 0.1, "bc": 1.03}},
-                "metrics_1.json": {"a": 2.3, "b": {"ad": 6.5, "bc": 7.9}},
+                "data": {
+                    "metrics.json": {
+                        "data": {"a": 1, "b": {"ad": 0.1, "bc": 1.03}}
+                    },
+                    "metrics_1.json": {
+                        "data": {"a": 2.3, "b": {"ad": 6.5, "bc": 7.9}}
+                    },
+                }
             }
         },
         all_branches=True,
@@ -354,8 +387,16 @@ def test_metrics_show_with_one_revision_multiple_paths():
 def test_metrics_show_with_different_metrics_header():
     td = metrics_table(
         {
-            "branch_1": {"metrics.json": {"b": {"ad": 1, "bc": 2}, "c": 4}},
-            "branch_2": {"metrics.json": {"a": 1, "b": {"ad": 3, "bc": 4}}},
+            "branch_1": {
+                "data": {
+                    "metrics.json": {"data": {"b": {"ad": 1, "bc": 2}, "c": 4}}
+                }
+            },
+            "branch_2": {
+                "data": {
+                    "metrics.json": {"data": {"a": 1, "b": {"ad": 3, "bc": 4}}}
+                }
+            },
         },
         all_branches=True,
     )
@@ -382,9 +423,13 @@ def test_metrics_show_with_different_metrics_header():
 def test_metrics_show_precision():
     metrics = {
         "branch_1": {
-            "metrics.json": {
-                "a": 1.098765366365355,
-                "b": {"ad": 1.5342673, "bc": 2.987725527},
+            "data": {
+                "metrics.json": {
+                    "data": {
+                        "a": 1.098765366365355,
+                        "b": {"ad": 1.5342673, "bc": 2.987725527},
+                    }
+                }
             }
         }
     }
@@ -445,44 +490,54 @@ def test_metrics_show_mocked(mocker, markdown):
 
 def test_metrics_show_default(capsys):
     show_metrics(
-        {
-            "metrics.yaml": {
-                "x.b": {"old": 5, "new": 6},
-                "a.d.e": {"old": 3, "new": 4, "diff": 1},
-                "a.b.c": {"old": 1, "new": 2, "diff": 1},
-            }
-        }
+        metrics={
+            "branch_1": {
+                "data": {
+                    "metrics.json": {"data": {"b": {"ad": 1, "bc": 2}, "c": 4}}
+                }
+            },
+            "branch_2": {
+                "data": {
+                    "metrics.json": {"data": {"a": 1, "b": {"ad": 3, "bc": 4}}}
+                }
+            },
+        },
+        all_branches=True,
     )
     out, _ = capsys.readouterr()
     assert out == textwrap.dedent(
         """\
-        Path    diff    new    old
-        x.b     -       6      5
-        a.d.e   1       4      3
-        a.b.c   1       2      1
+        Revision    Path          a    b.ad    b.bc    c
+        branch_1    metrics.json  -    1       2       4
+        branch_2    metrics.json  1    3       4       -
         """
     )
 
 
 def test_metrics_show_md(capsys):
     show_metrics(
-        {
-            "metrics.yaml": {
-                "x.b": {"old": 5, "new": 6},
-                "a.d.e": {"old": 3, "new": 4, "diff": 1},
-                "a.b.c": {"old": 1, "new": 2, "diff": 1},
-            }
+        metrics={
+            "branch_1": {
+                "data": {
+                    "metrics.json": {"data": {"b": {"ad": 1, "bc": 2}, "c": 4}}
+                }
+            },
+            "branch_2": {
+                "data": {
+                    "metrics.json": {"data": {"a": 1, "b": {"ad": 3, "bc": 4}}}
+                }
+            },
         },
+        all_branches=True,
         markdown=True,
     )
     out, _ = capsys.readouterr()
     assert out == textwrap.dedent(
         """\
-        | Path   | diff   | new   | old   |
-        |--------|--------|-------|-------|
-        | x.b    | -      | 6     | 5     |
-        | a.d.e  | 1      | 4     | 3     |
-        | a.b.c  | 1      | 2     | 1     |
+        | Revision   | Path         | a   | b.ad   | b.bc   | c   |
+        |------------|--------------|-----|--------|--------|-----|
+        | branch_1   | metrics.json | -   | 1      | 2      | 4   |
+        | branch_2   | metrics.json | 1   | 3      | 4      | -   |
 
         """
     )

@@ -98,7 +98,7 @@ class ParamsDependency(Dependency):
                 f"Unable to read parameters from '{self}'"
             ) from exc
 
-    def read_params_d(self):
+    def read_params_d(self, **kwargs):
         config = self._read()
 
         ret = {}

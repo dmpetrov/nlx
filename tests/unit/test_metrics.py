@@ -26,7 +26,7 @@ def test_metrics_order(tmp_dir, dvc):
             name="stage2",
         )
 
-    assert list(dvc.metrics.show()[""]) == [
+    assert list(dvc.metrics.show()[""]["data"]) == [
         "p.json",
         os.path.join("sub", "p4.json"),
         "p1.json",

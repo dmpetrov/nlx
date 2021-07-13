@@ -1,9 +1,6 @@
-import contextlib
 import logging
 import os
 from typing import TYPE_CHECKING, List, Optional
-
-from dvc.exceptions import MetricDoesNotExistError, MetricsError
 
 logger = logging.getLogger(__name__)
 
@@ -44,15 +41,9 @@ class Live:
         if revs:
             revs = ["workspace", *revs]
 
-        if not os.path.exists(target):
-            raise MetricDoesNotExistError([target])
-
         metrics_path = target + ".json"
 
-        metrics = None
-        with contextlib.suppress(MetricsError):
-            metrics = self.repo.metrics.show(targets=[metrics_path])
-
+        metrics = self.repo.metrics.show(targets=[metrics_path])
         plots = self.repo.plots.show(target, recursive=True, revs=revs)
 
         return metrics, plots

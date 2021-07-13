@@ -86,7 +86,8 @@ def test_plots_show_vega(dvc, mocker):
     assert cmd.run() == 0
 
     m.assert_called_once_with(
-        targets=["datafile"], props={"template": "template", "header": False}
+        targets=["datafile"],
+        props={"template": "template", "header": False},
     )
 
 

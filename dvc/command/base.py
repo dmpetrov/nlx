@@ -33,17 +33,12 @@ class CmdBase(ABC):
 
     def __init__(self, args):
         from dvc.repo import Repo
-        from dvc.updater import Updater
 
         os.chdir(args.cd)
 
         self.repo = Repo(uninitialized=self.UNINITIALIZED)
         self.config = self.repo.config
         self.args = args
-        if self.repo.tmp_dir:
-            hardlink_lock = self.config["core"].get("hardlink_lock", False)
-            updater = Updater(self.repo.tmp_dir, hardlink_lock=hardlink_lock)
-            updater.check()
 
     def do_run(self):
         with self.repo:

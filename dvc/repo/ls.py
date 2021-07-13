@@ -33,10 +33,12 @@ def ls(url, path=None, rev=None, recursive=None, dvc_only=False):
         if path:
             path_info /= path
 
-        ret = _ls(repo.repo_fs, path_info, recursive, dvc_only)
+        fs = repo.dvcfs if dvc_only else repo.repo_fs
 
-        if path and not ret:
+        if path and not fs.exists(path_info):
             raise PathMissingError(path, repo, dvc_only=dvc_only)
+
+        ret = _ls(fs, path_info, recursive, dvc_only)
 
         ret_list = []
         for path, info in ret.items():
